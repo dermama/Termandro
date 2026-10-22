@@ -12,8 +12,8 @@ android {
         applicationId = "com.deckos.core"
         minSdk = 28
         targetSdk = 28
-        versionCode = 3
-        versionName = "0.0.3"
+        versionCode = 5
+        versionName = "0.0.5"
 
         ndk {
             abiFilters += "arm64-v8a"

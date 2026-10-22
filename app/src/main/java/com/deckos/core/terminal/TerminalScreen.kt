@@ -2,6 +2,7 @@ package com.deckos.core.terminal
 
 import android.graphics.Color
 import android.graphics.Typeface
+import android.util.TypedValue
 import android.view.KeyEvent
 import android.view.MotionEvent
 import androidx.activity.compose.BackHandler
@@ -88,7 +89,13 @@ private fun TerminalContent(viewModel: TerminalSessionViewModel) {
         factory = { context ->
             TerminalView(context, null).apply {
                 setBackgroundColor(Color.BLACK)
-                setTextSize(14)
+                setTextSize(
+                    TypedValue.applyDimension(
+                        TypedValue.COMPLEX_UNIT_DIP,
+                        14f,
+                        context.resources.displayMetrics,
+                    ).toInt(),
+                )
                 setTypeface(Typeface.MONOSPACE)
                 setTerminalViewClient(DeckTerminalViewClient())
                 isFocusable = true

@@ -60,7 +60,7 @@ class TerminalSessionViewModel(application: Application) : AndroidViewModel(appl
         return TerminalSession(
             runtime.shellPath(),
             runtime.homePath(),
-            arrayOf("-l"),
+            arrayOf("bash", "-l"),
             runtime.environment(),
             5000,
             DeckTerminalSessionClient(app),

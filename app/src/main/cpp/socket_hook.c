@@ -4,6 +4,7 @@
 #include <sys/un.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#include <dirent.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
@@ -23,10 +24,19 @@ static const char *TERMUX_HOME = "/data/data/com.termux/files/home";
 static const char *REL_TERMUX_PREFIX = "data/data/com.termux/files/usr";
 static const char *REL_TERMUX_HOME = "data/data/com.termux/files/home";
 static const char *REL_TERMUX_BASE = "data/data/com.termux";
+static const char *ABS_TERMUX_BASE = "/data/data/com.termux";
 
 static const char *new_prefix(void) {
     const char *value = getenv("DECKOS_PREFIX");
     return (value && value[0]) ? value : NEW_PREFIX;
+}
+
+static const char *fake_termux_root(void) {
+    static char buf[1024];
+    const char *value = getenv("DECKOS_FAKE_ROOT");
+    if (value && value[0]) return value;
+    snprintf(buf, sizeof(buf), "%s/../.deckos-termux-root", new_prefix());
+    return buf;
 }
 
 /* Path-based libc wrappers we need to redirect. */
@@ -37,6 +47,10 @@ static int (*real_openat)(int, const char *, int, ...) = NULL;
 static int (*real_openat64)(int, const char *, int, ...) = NULL;
 static FILE *(*real_fopen)(const char *, const char *) = NULL;
 static FILE *(*real_fopen64)(const char *, const char *) = NULL;
+static DIR *(*real_opendir)(const char *) = NULL;
+static int (*real_scandir)(const char *, struct dirent ***,
+                           int (*)(const struct dirent *),
+                           int (*)(const struct dirent **, const struct dirent **)) = NULL;
 static int (*real_stat)(const char *, struct stat *) = NULL;
 static int (*real_stat64)(const char *, struct stat64 *) = NULL;
 static int (*real_lstat)(const char *, struct stat *) = NULL;
@@ -95,6 +109,8 @@ static void do_init() {
     real_openat64 = dlsym(RTLD_NEXT, "openat64");
     real_fopen = dlsym(RTLD_NEXT, "fopen");
     real_fopen64 = dlsym(RTLD_NEXT, "fopen64");
+    real_opendir = dlsym(RTLD_NEXT, "opendir");
+    real_scandir = dlsym(RTLD_NEXT, "scandir");
     real_stat = dlsym(RTLD_NEXT, "stat");
     real_stat64 = dlsym(RTLD_NEXT, "stat64");
     real_lstat = dlsym(RTLD_NEXT, "lstat");
@@ -179,15 +195,6 @@ static const char* rewrite_path(const char* path, char* buf, size_t buf_size) {
         }
     }
 
-    size_t base_len = strlen(REL_TERMUX_BASE);
-    if (strncmp(p, REL_TERMUX_BASE, base_len) == 0) {
-        char next = p[base_len];
-        if (next == '/' || next == '\0') {
-            snprintf(buf, buf_size, "%s", new_prefix());
-            return buf;
-        }
-    }
-
     size_t term_len = strlen(TERMUX_PREFIX);
     if (strncmp(path, TERMUX_PREFIX, term_len) == 0) {
         snprintf(buf, buf_size, "%s%s", new_prefix(), path + term_len);
@@ -203,11 +210,20 @@ static const char* rewrite_path(const char* path, char* buf, size_t buf_size) {
         }
     }
 
-    size_t abs_base_len = strlen("/data/data/com.termux");
-    if (strncmp(path, "/data/data/com.termux", abs_base_len) == 0) {
+    size_t rel_base_len = strlen(REL_TERMUX_BASE);
+    if (strncmp(p, REL_TERMUX_BASE, rel_base_len) == 0) {
+        char next = p[rel_base_len];
+        if (next == '/' || next == '\0') {
+            snprintf(buf, buf_size, "%s%s", fake_termux_root(), p + rel_base_len);
+            return buf;
+        }
+    }
+
+    size_t abs_base_len = strlen(ABS_TERMUX_BASE);
+    if (strncmp(path, ABS_TERMUX_BASE, abs_base_len) == 0) {
         char next = path[abs_base_len];
         if (next == '/' || next == '\0') {
-            snprintf(buf, buf_size, "%s", new_prefix());
+            snprintf(buf, buf_size, "%s%s", fake_termux_root(), path + abs_base_len);
             return buf;
         }
     }
@@ -434,6 +450,20 @@ FILE *fopen(const char *pathname, const char *mode) {
     setup();
     char buf[1024];
     return real_fopen(rewrite_path(pathname, buf, sizeof(buf)), mode);
+}
+
+DIR *opendir(const char *pathname) {
+    setup();
+    char buf[1024];
+    return real_opendir(rewrite_path(pathname, buf, sizeof(buf)));
+}
+
+int scandir(const char *dirp, struct dirent ***namelist,
+            int (*filter)(const struct dirent *),
+            int (*compar)(const struct dirent **, const struct dirent **)) {
+    setup();
+    char buf[1024];
+    return real_scandir(rewrite_path(dirp, buf, sizeof(buf)), namelist, filter, compar);
 }
 
 int stat(const char *pathname, struct stat *statbuf) {

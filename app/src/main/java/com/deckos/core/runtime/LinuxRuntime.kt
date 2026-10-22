@@ -100,7 +100,7 @@ class LinuxRuntime(private val context: Context) {
             "TERMUX_APP__PACKAGE_NAME=com.deckos.core",
             "TERMUX__PREFIX=$prefix",
             "TERMUX__HOME=$home",
-            "TERMUX_VERSION=DeckOS 0.0.3",
+            "TERMUX_VERSION=DeckOS 0.0.5",
             "TERMUX_APP_PACKAGE_MANAGER=apt",
             "DPKG_ADMINDIR=$prefix/var/lib/dpkg",
             "APT_CONFIG=$prefix/etc/apt/apt.conf.d/99-deckos-paths.conf",
@@ -182,10 +182,10 @@ class LinuxRuntime(private val context: Context) {
             restoreSymlinks(staging)
             prepareDirectories(staging)
             onProgress(0.93f, "Configuring package manager")
-            relocateText(staging)
+            relocateText(staging, prefixDir.absolutePath)
             installHook(staging)
-            installDpkgWrapper(staging)
-            writeAptConfig(staging)
+            installDpkgWrapper(staging, prefixDir.absolutePath)
+            writeAptConfig(staging, prefixDir.absolutePath)
             setExecutables(staging)
             linkRuntimeDirectories(staging)
 
@@ -279,7 +279,7 @@ class LinuxRuntime(private val context: Context) {
         }
     }
 
-    private fun relocateText(prefix: File) {
+    private fun relocateText(prefix: File, targetPrefix: String) {
         var changed = 0
         TEXT_DIRS.forEach { relative ->
             val dir = File(prefix, relative)
@@ -295,7 +295,7 @@ class LinuxRuntime(private val context: Context) {
                 val text = String(bytes, Charsets.ISO_8859_1)
                 if (!text.contains(OLD_PREFIX) && !text.contains(OLD_HOME)) return@forEach
                 file.writeBytes(
-                    text.replace(OLD_PREFIX, prefix.absolutePath)
+                    text.replace(OLD_PREFIX, targetPrefix)
                         .replace(OLD_HOME, homeDir.absolutePath)
                         .toByteArray(Charsets.ISO_8859_1),
                 )
@@ -303,6 +303,30 @@ class LinuxRuntime(private val context: Context) {
             }
         }
         Log.i(TAG, "Relocated $changed text files")
+    }
+
+    private fun repairStagedPaths() {
+        val targetPrefix = prefixDir.absolutePath
+        val stagedPrefix = "$targetPrefix.new"
+        var changed = 0
+        TEXT_DIRS.forEach { relative ->
+            val dir = File(prefixDir, relative)
+            if (!dir.exists()) return@forEach
+            dir.walkTopDown().forEach { file ->
+                if (!file.isFile || file.length() > 4 * 1024 * 1024) return@forEach
+                if (isElf(file)) return@forEach
+                val bytes = runCatching { file.readBytes() }.getOrNull() ?: return@forEach
+                val text = String(bytes, Charsets.ISO_8859_1)
+                if (!text.contains(stagedPrefix)) return@forEach
+                file.writeBytes(
+                    text.replace(stagedPrefix, targetPrefix).toByteArray(Charsets.ISO_8859_1),
+                )
+                changed++
+            }
+        }
+        if (changed > 0) {
+            Log.i(TAG, "Repaired $changed staged paths")
+        }
     }
 
     private fun installHook(prefix: File) {
@@ -314,7 +338,7 @@ class LinuxRuntime(private val context: Context) {
         destination.setExecutable(true, false)
     }
 
-    private fun installDpkgWrapper(prefix: File) {
+    private fun installDpkgWrapper(prefix: File, targetPrefix: String) {
         val dpkg = File(prefix, "bin/dpkg")
         val real = File(prefix, "bin/dpkg.real")
         if (!real.exists() && dpkg.exists()) {
@@ -328,7 +352,7 @@ class LinuxRuntime(private val context: Context) {
             """
             #!/system/bin/sh
             old_prefix="$OLD_PREFIX"
-            new_prefix="${prefix.absolutePath}"
+            new_prefix="$targetPrefix"
             old_home="$OLD_HOME"
             new_home="${homeDir.absolutePath}"
             marker="${'$'}1"
@@ -362,7 +386,7 @@ class LinuxRuntime(private val context: Context) {
         dpkg.writeText(
             """
             #!/system/bin/sh
-            PREFIX="${prefix.absolutePath}"
+            PREFIX="$targetPrefix"
             HOME="${homeDir.absolutePath}"
             TMPDIR="${tmpDir.absolutePath}"
             export PREFIX HOME TMPDIR
@@ -371,6 +395,7 @@ class LinuxRuntime(private val context: Context) {
             export LD_PRELOAD="${'$'}PREFIX/lib/libsocket_hook.so"
             export DECKOS_PREFIX="${'$'}PREFIX"
             export DPKG_ADMINDIR="${'$'}PREFIX/var/lib/dpkg"
+            mkdir -p "${'$'}PREFIX/../.deckos-termux-root/files"
             marker="${'$'}TMPDIR/dpkg-scan.${'$'}${'$'}"
             : > "${'$'}marker"
             "${'$'}PREFIX/bin/dpkg.real" "${'$'}@"
@@ -383,19 +408,19 @@ class LinuxRuntime(private val context: Context) {
         dpkg.setExecutable(true, false)
     }
 
-    private fun writeAptConfig(prefix: File) {
+    private fun writeAptConfig(prefix: File, targetPrefix: String) {
         val directory = File(prefix, "etc/apt/apt.conf.d")
         directory.mkdirs()
         File(directory, "99-deckos-paths.conf").writeText(
             """
-            Dir "${prefix.absolutePath}";
-            Dir::Etc "${prefix.absolutePath}/etc/apt";
-            Dir::State "${prefix.absolutePath}/var/lib/apt";
-            Dir::State::dpkg "${prefix.absolutePath}/var/lib/dpkg";
-            Dir::Cache "${prefix.absolutePath}/var/cache/apt";
-            Dir::Log "${prefix.absolutePath}/var/log/apt";
-            Dir::Bin::Methods "${prefix.absolutePath}/lib/apt/methods";
-            Dir::Bin::dpkg "${prefix.absolutePath}/bin/dpkg";
+            Dir "$targetPrefix";
+            Dir::Etc "$targetPrefix/etc/apt";
+            Dir::State "$targetPrefix/var/lib/apt";
+            Dir::State::dpkg "$targetPrefix/var/lib/dpkg";
+            Dir::Cache "$targetPrefix/var/cache/apt";
+            Dir::Log "$targetPrefix/var/log/apt";
+            Dir::Bin::Methods "$targetPrefix/lib/apt/methods";
+            Dir::Bin::dpkg "$targetPrefix/bin/dpkg";
             Acquire::Retries "3";
             Acquire::http::Timeout "30";
             Acquire::https::Timeout "30";
@@ -435,10 +460,9 @@ class LinuxRuntime(private val context: Context) {
                 installHook(prefixDir)
             }
         }
-        if (!File(prefixDir, "bin/dpkg.real").exists()) {
-            installDpkgWrapper(prefixDir)
-        }
-        writeAptConfig(prefixDir)
+        repairStagedPaths()
+        installDpkgWrapper(prefixDir, prefixDir.absolutePath)
+        writeAptConfig(prefixDir, prefixDir.absolutePath)
         prepareDirectories(prefixDir)
         linkRuntimeDirectories(prefixDir)
     }
