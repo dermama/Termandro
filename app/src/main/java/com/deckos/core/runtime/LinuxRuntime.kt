@@ -332,10 +332,15 @@ class LinuxRuntime(private val context: Context) {
     private fun installHook(prefix: File) {
         val destination = File(prefix, "lib/libsocket_hook.so")
         destination.parentFile?.mkdirs()
+        val staging = File(destination.parentFile, "libsocket_hook.so.new")
         context.assets.open("libsocket_hook.so").use { input ->
-            destination.outputStream().use { output -> input.copyTo(output) }
+            staging.outputStream().use { output -> input.copyTo(output) }
         }
-        destination.setExecutable(true, false)
+        staging.setExecutable(true, false)
+        if (!staging.renameTo(destination)) {
+            staging.delete()
+            throw IOException("Could not install path hook")
+        }
     }
 
     private fun installDpkgWrapper(prefix: File, targetPrefix: String) {
@@ -455,11 +460,7 @@ class LinuxRuntime(private val context: Context) {
     }
 
     private fun ensureRuntimeFiles() {
-        File(prefixDir, "lib/libsocket_hook.so").let { hook ->
-            if (!hook.isFile) {
-                installHook(prefixDir)
-            }
-        }
+        installHook(prefixDir)
         repairStagedPaths()
         installDpkgWrapper(prefixDir, prefixDir.absolutePath)
         writeAptConfig(prefixDir, prefixDir.absolutePath)
