@@ -71,7 +71,9 @@ jobs:
               log = String(error);
             }
             const lines = log.split('\n');
-            let start = lines.findIndex((line) => line.includes('FAILURE:'));
+            let start = lines.findIndex((line) => /^e: /.test(line));
+            if (start < 0) start = lines.findIndex((line) => line.includes('error:'));
+            if (start < 0) start = lines.findIndex((line) => line.includes('FAILURE:'));
             if (start < 0) start = Math.max(0, lines.length - 200);
             const details = lines.slice(start, start + 200).join('\n');
             await core.summary
