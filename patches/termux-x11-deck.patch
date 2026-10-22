@@ -33,3 +33,22 @@ index 6a0a454..1453a47 100644
      implementation 'androidx.preference:preference:1.2.1'
      compileOnly project(':shell-loader:stub')
  }
+
+diff --git a/lorie/src/main/AndroidManifest.xml b/lorie/src/main/AndroidManifest.xml
+index 0ad222a..c3a4ddc 100644
+--- a/lorie/src/main/AndroidManifest.xml
++++ b/lorie/src/main/AndroidManifest.xml
+@@ -25,13 +25,6 @@
+             android:resizeableActivity="true"
+             android:windowSoftInputMode="stateHidden|adjustNothing"
+             android:exported="true">
+-            <intent-filter>
+-                <action android:name="android.intent.action.MAIN" />
+-                <category android:name="android.intent.category.LAUNCHER" />
+-            </intent-filter>
+-            <intent-filter>
+-                <category android:name="android.intent.category.SECONDARY_HOME" />
+-            </intent-filter>
+             <meta-data android:name="android.app.shortcuts" android:resource="@xml/lorie_shortcuts" />
+         </activity>
+         <activity

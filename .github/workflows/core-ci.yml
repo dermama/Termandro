@@ -108,6 +108,10 @@ jobs:
           grep -qx 'lib/arm64-v8a/libtermux.so' <<<"$entries"
           size="$(stat -c%s "$apk")"
           test "$size" -le $((70 * 1024 * 1024))
+          "$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt2" dump badging "$apk" > /tmp/apk-badging.txt
+          grep -q "^package: name='com.deckos.core'" /tmp/apk-badging.txt
+          grep -q "^launchable-activity: name='com.deckos.core.MainActivity'" /tmp/apk-badging.txt
+          test "$(grep -c '^launchable-activity:' /tmp/apk-badging.txt)" -eq 1
           echo "APK=$apk"
           echo "SIZE=$size"
 
