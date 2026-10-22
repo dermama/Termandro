@@ -6,32 +6,62 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.deckos.core.runtime.LinuxRuntime
 import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+sealed interface LinuxUiState {
+    data class Installing(val progress: Float, val message: String) : LinuxUiState
+    data class Failed(val message: String) : LinuxUiState
+    data object Ready : LinuxUiState
+}
 
 class TerminalSessionViewModel(application: Application) : AndroidViewModel(application) {
 
+    private val runtime = LinuxRuntime(application)
     private var session: TerminalSession? = null
+
+    private val _state = MutableStateFlow<LinuxUiState>(
+        if (runtime.isInstalled()) {
+            LinuxUiState.Ready
+        } else {
+            LinuxUiState.Installing(0f, "Preparing Linux")
+        },
+    )
+    val state: StateFlow<LinuxUiState> = _state.asStateFlow()
+
+    init {
+        if (runtime.isInstalled()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                runCatching { runtime.prepare() }
+                    .onFailure { Log.w("DeckOSLinux", "Could not refresh runtime files", it) }
+            }
+        } else {
+            install()
+        }
+    }
+
+    fun retry() {
+        if (_state.value is LinuxUiState.Failed) {
+            install()
+        }
+    }
 
     fun session(): TerminalSession {
         session?.let { return it }
 
         val app = getApplication<Application>()
-        val home = app.filesDir.absolutePath
-        val cache = app.cacheDir.absolutePath
-        val env = arrayOf(
-            "HOME=$home",
-            "TMPDIR=$cache",
-            "PATH=/system/bin:/system/xbin",
-            "TERM=xterm-256color",
-            "LANG=en_US.UTF-8",
-        )
-
         return TerminalSession(
-            "/system/bin/sh",
-            home,
-            arrayOf("-i"),
-            env,
+            runtime.shellPath(),
+            runtime.homePath(),
+            arrayOf("-l"),
+            runtime.environment(),
             5000,
             DeckTerminalSessionClient(app),
         ).also { session = it }
@@ -40,6 +70,24 @@ class TerminalSessionViewModel(application: Application) : AndroidViewModel(appl
     fun endSession() {
         session?.finishIfRunning()
         session = null
+    }
+
+    private fun install() {
+        _state.value = LinuxUiState.Installing(0f, "Preparing Linux")
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                runtime.ensureInstalled { progress, message ->
+                    _state.value = LinuxUiState.Installing(progress, message)
+                }
+            }.onSuccess {
+                _state.value = LinuxUiState.Ready
+            }.onFailure { error ->
+                Log.e("DeckOSLinux", "Linux install failed", error)
+                _state.value = LinuxUiState.Failed(
+                    error.message ?: "Could not install the Linux environment",
+                )
+            }
+        }
     }
 
     override fun onCleared() {

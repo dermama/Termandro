@@ -56,6 +56,17 @@ jobs:
           test -x app/src/main/assets/deck-xclient
           "$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt2" version >/dev/null
 
+      - name: Build Termux path hook
+        run: |
+          set -euo pipefail
+          mkdir -p app/src/main/assets
+          "$ANDROID_SDK_ROOT/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang" \
+            -shared -fPIC -O2 -Wall -Wextra \
+            -DNEW_PREFIX='"/data/user/0/com.deckos.core/files/usr"' \
+            -o app/src/main/assets/libsocket_hook.so \
+            app/src/main/cpp/socket_hook.c -llog
+          test -s app/src/main/assets/libsocket_hook.so
+
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Make wrapper executable
@@ -118,6 +129,7 @@ jobs:
           grep -qx 'lib/arm64-v8a/libXlorie.so' <<<"$entries"
           grep -qx 'lib/arm64-v8a/libtermux.so' <<<"$entries"
           grep -qx 'assets/deck-xclient' <<<"$entries"
+          grep -qx 'assets/libsocket_hook.so' <<<"$entries"
           size="$(stat -c%s "$apk")"
           test "$size" -le $((70 * 1024 * 1024))
           "$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt2" dump badging "$apk" > /tmp/apk-badging.txt
