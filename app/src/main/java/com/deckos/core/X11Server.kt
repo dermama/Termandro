@@ -51,19 +51,26 @@ object X11Server {
     fun isRunning(context: Context): Boolean = readPid(context) != null
 
     /**
-     * The stock Termux:X11 app runs the same entry point, so the process check has to be
-     * specific to our own instance. Only "termux-x11-deck" plus the entry point match.
+     * app_process replaces argv[0] with the --nice-name value once it starts, so the live
+     * server advertises exactly "termux-x11-deck" and no longer carries the entry point.
+     * Match that token; never match the transient shell wrapper, whose argv[0] is "sh".
      */
     fun isServerProcess(pid: Int): Boolean {
-        val cmdline = readCmdline(pid) ?: return false
-        return cmdline.contains(SERVER_PROCESS_NAME) && cmdline.contains(SERVER_ENTRY_POINT)
+        val argv = readCmdline(pid) ?: return false
+        val argv0 = argv.firstOrNull()?.substringAfterLast('/') ?: return false
+        if (argv0 == SERVER_PROCESS_NAME) return true
+        return argv0.startsWith("app_process") &&
+            argv.any { it == "--nice-name=$SERVER_PROCESS_NAME" }
     }
 
-    private fun readCmdline(pid: Int): String? {
+    private fun readCmdline(pid: Int): List<String>? {
         val file = File("/proc/$pid/cmdline")
         if (!file.isFile) return null
         return runCatching {
-            file.readBytes().toString(Charsets.ISO_8859_1).replace('\u0000', ' ')
+            file.readBytes().toString(Charsets.ISO_8859_1)
+                .split('\u0000')
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
         }.getOrNull()
     }
 
