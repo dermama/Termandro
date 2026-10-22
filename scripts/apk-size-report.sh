@@ -4,7 +4,15 @@ set -euo pipefail
 apk="${1:-app/build/outputs/apk/debug/app-debug.apk}"
 
 if [[ ! -f "$apk" ]]; then
+  found="$(find app/build/outputs/apk -type f -name '*.apk' -print -quit 2>/dev/null || true)"
+  if [[ -n "$found" ]]; then
+    apk="$found"
+  fi
+fi
+
+if [[ ! -f "$apk" ]]; then
   echo "APK not found: $apk" >&2
+  find app/build/outputs -maxdepth 5 -type f 2>/dev/null >&2 || true
   exit 1
 fi
 
@@ -17,4 +25,5 @@ printf 'Size: %s bytes (%s MiB)\n' "$bytes" "$mib"
 printf 'SHA-256: %s\n' "$sha"
 
 printf '\nLargest entries:\n'
-unzip -l "$apk" | awk 'NR > 3 && NF >= 4 && $1 ~ /^[0-9]+$/ { printf "%10s  %s\n", $1, $4 }' | sort -nr | head -20
+entries="$(unzip -l "$apk" | awk 'NR > 3 && NF >= 4 && $1 ~ /^[0-9]+$/ { printf "%10s  %s\n", $1, $4 }' | sort -nr)"
+printf '%s\n' "$entries" | sed -n '1,20p'
