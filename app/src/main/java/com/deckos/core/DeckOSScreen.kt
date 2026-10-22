@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -52,8 +53,8 @@ private val statuses = listOf(
     ),
     CoreStatus(
         title = "X11 surface",
-        detail = "Next: lorie bridge",
-        ready = false,
+        detail = "Lorie X11 bridge is ready",
+        ready = true,
     ),
     CoreStatus(
         title = "Desktop host",
@@ -68,7 +69,10 @@ private val statuses = listOf(
 )
 
 @Composable
-fun DeckOSScreen(onOpenTerminal: () -> Unit) {
+fun DeckOSScreen(
+    onOpenTerminal: () -> Unit,
+    onOpenX11: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -108,6 +112,20 @@ fun DeckOSScreen(onOpenTerminal: () -> Unit) {
         ) {
             Text(
                 text = "Open terminal",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(vertical = 6.dp),
+            )
+        }
+
+        OutlinedButton(
+            onClick = onOpenX11,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = DeckCyan),
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            Text(
+                text = "Open X11 desktop",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(vertical = 6.dp),

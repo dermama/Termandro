@@ -1,6 +1,8 @@
 package com.deckos.core
 
+import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.getValue
@@ -19,9 +21,20 @@ class MainActivity : ComponentActivity() {
                 if (terminalOpen) {
                     TerminalScreen(onBack = { terminalOpen = false })
                 } else {
-                    DeckOSScreen(onOpenTerminal = { terminalOpen = true })
+                    DeckOSScreen(
+                        onOpenTerminal = { terminalOpen = true },
+                        onOpenX11 = ::openX11,
+                    )
                 }
             }
+        }
+    }
+
+    private fun openX11() {
+        runCatching {
+            startActivity(Intent(this, com.termux.x11.MainActivity::class.java))
+        }.onFailure {
+            Toast.makeText(this, "X11 activity is unavailable", Toast.LENGTH_SHORT).show()
         }
     }
 }
