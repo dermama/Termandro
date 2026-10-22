@@ -1,0 +1,2 @@
+#!/bin/bash
+exec /bin/chromium --no-sandbox --disable-dev-shm-usage "$@"

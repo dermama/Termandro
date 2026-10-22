@@ -1,0 +1,3 @@
+#!/bin/bash
+exec </dev/null >/tmp/agi_handler.log 2>&1
+exec setsid --fork /usr/local/bin/antigravity-ide --no-sandbox "$@"

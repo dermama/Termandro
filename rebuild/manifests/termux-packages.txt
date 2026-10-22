@@ -1,0 +1,25 @@
+# Termux packages observed on the source device (2026-10-21)
+# Required core:
+proot
+termux-x11-nightly
+x11-repo
+pulseaudio
+termux-api
+android-tools
+git
+gh
+tmux
+fribidi
+dbus
+libqrencode
+expect
+zbar
+wget
+curl
+tar
+# Optional / parity:
+glibc-repo
+glibc
+llama-cpp
+python
+openssh

@@ -1,0 +1,15 @@
+#!/bin/bash
+exec </dev/null >/tmp/agi_icon.log 2>&1
+export NODE_OPTIONS="--max-old-space-size=2048"
+exec setsid --fork /usr/local/bin/antigravity-ide \
+  --no-sandbox \
+  --use-gl=angle \
+  --use-angle=swiftshader \
+  --enable-unsafe-swiftshader \
+  --disable-gpu-compositing \
+  --disable-dev-shm-usage \
+  --disable-workspace-trust \
+  --mute-audio \
+  --disable-features=AudioServiceOutOfProcess,MediaSessionService,HardwareMediaKeyHandling \
+  --js-flags="--max-old-space-size=2048" \
+  "$@"

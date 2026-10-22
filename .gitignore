@@ -1,0 +1,40 @@
+# Local reference clones (keep only the source manifest)
+sources/*
+!sources/README.md
+!sources/manifest.json
+
+# Local state and logs
+STATE.md
+*.log
+
+# Android / Gradle
+.gradle/
+.kotlin/
+build/
+**/build/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Signing and secrets
+*.jks
+*.keystore
+*.p12
+key.properties
+.env
+.env.*
+adb-pair-qr.png
+deckos-adb-pair-*.png
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Build artifacts
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class

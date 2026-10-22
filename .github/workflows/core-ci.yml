@@ -1,0 +1,78 @@
+name: Core CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: core-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager --install \
+            "platforms;android-34" \
+            "platforms;android-35" \
+            "build-tools;36.0.0" \
+            "ndk;29.0.14206865" \
+            "cmake;3.22.1"
+
+      - name: Fetch Termux:X11 sources
+        run: |
+          set -euo pipefail
+          rm -rf sources/termux-x11
+          git clone --depth 1 https://github.com/termux/termux-x11.git sources/termux-x11
+          git -C sources/termux-x11 fetch --depth 1 origin 5986cfc39458630dadd191735601cf2adc23a19f
+          git -C sources/termux-x11 checkout --detach FETCH_HEAD
+          git -C sources/termux-x11 submodule update --init --recursive
+          git -C sources/termux-x11 apply "$GITHUB_WORKSPACE/patches/termux-x11-deck.patch"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Make wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: Test and build debug APK
+        run: |
+          ./gradlew \
+            -Pandroid.aapt2FromMavenOverride="$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt2" \
+            :app:testDebugUnitTest :app:assembleDebug \
+            --stacktrace --no-daemon
+
+      - name: Lint
+        run: |
+          ./gradlew \
+            -Pandroid.aapt2FromMavenOverride="$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt2" \
+            :app:lintDebug --stacktrace --no-daemon
+
+      - name: APK report
+        run: ./scripts/apk-size-report.sh app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: deckos-core-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14

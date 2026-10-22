@@ -1,0 +1,73 @@
+{
+  "generated_at": "2026-10-21",
+  "policy": "shallow pinned reference clones; no APK merging; final repo uses submodules or reviewed forks",
+  "repos": [
+    {
+      "name": "DroidDesk",
+      "url": "https://github.com/orailnoor/DroidDesk.git",
+      "branch": "main",
+      "commit": "a410944b15fce2fb136208ecdb06d49adba4eb2a",
+      "license": "GPL-3.0",
+      "role": "native desktop reference",
+      "integration": "selected Kotlin/X11/runtime modules and assets after review",
+      "notes": [
+        "Flutter UI is not reused in v1",
+        "non-root path uses socket_hook LD_PRELOAD",
+        "chroot path forces llvmpipe"
+      ]
+    },
+    {
+      "name": "DroidDeck",
+      "url": "https://github.com/Droid-Deck/DroidDeck.git",
+      "branch": "main",
+      "commit": "0e7818049ab5ee0cf4409af0143c12ac98e6e1a8",
+      "license": "GPL-3.0",
+      "role": "game engine reference",
+      "integration": "optional game pack; reviewed fork and pinned packs",
+      "notes": [
+        "contains public testkey.p12",
+        "build depends on proot/directaudio/tracking/xbox/comet packs and KDE archive",
+        "not part of core APK CI"
+      ]
+    },
+    {
+      "name": "termux-app",
+      "url": "https://github.com/termux/termux-app.git",
+      "branch": "master",
+      "commit": "8629e632fcb95da272221be327db653fb24befe9",
+      "license": "GPL-3.0",
+      "role": "terminal modules and bootstrap",
+      "integration": "Gradle modules or limited fork",
+      "notes": [
+        "terminal-emulator and terminal-view are the target modules",
+        "bootstrap checksum verification exists"
+      ]
+    },
+    {
+      "name": "termux-x11",
+      "url": "https://github.com/termux/termux-x11.git",
+      "branch": "master",
+      "commit": "5986cfc39458630dadd191735601cf2adc23a19f",
+      "license": "GPL-3.0",
+      "role": "X11 server (lorie)",
+      "integration": "fork or import lorie module",
+      "notes": [
+        "submodules not initialized in reference clone",
+        "standalone targetSdk 34; sharedUid targetSdk 28"
+      ]
+    },
+    {
+      "name": "Shizuku",
+      "url": "https://github.com/RikkaApps/Shizuku.git",
+      "branch": "master",
+      "commit": "b844bc491f1790c72328e1a8e5b2349f8978f0ea",
+      "license": "Apache-2.0",
+      "role": "phone privilege bridge",
+      "integration": "later phase; UserService and limited capabilities",
+      "notes": [
+        "api submodule uses SSH URL and is not initialized",
+        "ADB shell UID 2000, not root"
+      ]
+    }
+  ]
+}

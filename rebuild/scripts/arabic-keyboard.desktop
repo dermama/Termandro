@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Arabic Keyboard Layout
+Comment=US + Arabic with Alt+Shift
+Exec=setxkbmap -layout us,ara -option grp:alt_shift_toggle
+Terminal=false
+Hidden=false
+X-GNOME-Autostart-enabled=true
+OnlyShowIn=XFCE;

@@ -1,0 +1,7 @@
+/root/.nvm/versions/node/v20.20.2/lib
+├── composio-core@0.5.39
+├── corepack@0.34.6
+├── freebuff@0.0.173
+├── npm@10.8.2
+└── wrangler@4.86.0
+
