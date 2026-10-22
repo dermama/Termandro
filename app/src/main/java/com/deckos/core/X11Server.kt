@@ -17,7 +17,7 @@ object X11Server {
         }
 
         val pid = pidFile.takeIf { it.isFile }?.readText()?.trim()?.toIntOrNull()
-        if (pid != null && File("/proc/$pid").exists()) {
+        if (pid != null && isServerProcess(pid)) {
             return
         }
 
@@ -34,6 +34,11 @@ object X11Server {
             redirectErrorStream(true)
             redirectOutput(File(filesDir, "x11.log"))
         }.start()
+    }
+
+    private fun isServerProcess(pid: Int): Boolean {
+        val cmdline = File("/proc/$pid/cmdline").takeIf { it.isFile }?.readText().orEmpty()
+        return cmdline.contains("termux-x11")
     }
 
     private fun extractXkb(context: Context, dest: File) {
