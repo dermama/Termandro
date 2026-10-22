@@ -51,10 +51,21 @@ jobs:
 
       - name: Test and build debug APK
         run: |
+          set -o pipefail
           ./gradlew \
             -Pandroid.aapt2FromMavenOverride="$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt2" \
             :app:testDebugUnitTest :app:assembleDebug \
-            --stacktrace --no-daemon
+            --stacktrace --no-daemon 2>&1 | tee /tmp/gradle-build.log
+
+      - name: Publish Gradle failure summary
+        if: failure()
+        run: |
+          {
+            echo '### Last Gradle output'
+            echo '```text'
+            tail -n 200 /tmp/gradle-build.log 2>/dev/null || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Lint
         run: |
