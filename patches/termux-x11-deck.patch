@@ -52,3 +52,16 @@ index 0ad222a..c3a4ddc 100644
              <meta-data android:name="android.app.shortcuts" android:resource="@xml/lorie_shortcuts" />
          </activity>
          <activity
+diff --git a/lorie/src/main/cpp/lorie/lorie.h b/lorie/src/main/cpp/lorie/lorie.h
+index a3ebd44..f5ca172 100644
+--- a/lorie/src/main/cpp/lorie/lorie.h
++++ b/lorie/src/main/cpp/lorie/lorie.h
+@@ -15,7 +15,7 @@
+ #include "linux/input-event-codes.h"
+ #include "buffer.h"
+ 
+-#define PORT 7892
++#define PORT 7893
+ #define DOCUMENT_PORT_BASE 7900
+ #define MAGIC "0xDEADBEEF"
+ 

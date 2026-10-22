@@ -45,6 +45,17 @@ jobs:
           git -C sources/termux-x11 submodule update --init --recursive
           git -C sources/termux-x11 apply "$GITHUB_WORKSPACE/patches/termux-x11-deck.patch"
 
+      - name: Build native X11 test client
+        run: |
+          set -euo pipefail
+          mkdir -p app/src/main/assets
+          "$ANDROID_SDK_ROOT/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang" \
+            -O2 -fPIE -pie -Wall -Wextra \
+            -o app/src/main/assets/deck-xclient \
+            tools/deck_xclient.c
+          test -x app/src/main/assets/deck-xclient
+          "$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt2" version >/dev/null
+
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Make wrapper executable
@@ -106,6 +117,7 @@ jobs:
           entries="$(unzip -Z1 "$apk")"
           grep -qx 'lib/arm64-v8a/libXlorie.so' <<<"$entries"
           grep -qx 'lib/arm64-v8a/libtermux.so' <<<"$entries"
+          grep -qx 'assets/deck-xclient' <<<"$entries"
           size="$(stat -c%s "$apk")"
           test "$size" -le $((70 * 1024 * 1024))
           "$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt2" dump badging "$apk" > /tmp/apk-badging.txt

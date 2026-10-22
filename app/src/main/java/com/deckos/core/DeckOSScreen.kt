@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -52,11 +53,6 @@ private val statuses = listOf(
         ready = true,
     ),
     CoreStatus(
-        title = "X11 surface",
-        detail = "Lorie X11 bridge is ready",
-        ready = true,
-    ),
-    CoreStatus(
         title = "Desktop host",
         detail = "Phase 4: DroidDesk fast path",
         ready = false,
@@ -70,8 +66,13 @@ private val statuses = listOf(
 
 @Composable
 fun DeckOSScreen(
+    serverStatus: X11ServerStatus,
+    clientStatus: X11ClientStatus,
     onOpenTerminal: () -> Unit,
     onOpenX11: () -> Unit,
+    onTestWindow: () -> Unit,
+    onRestartX11: () -> Unit,
+    onStopX11: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -99,6 +100,14 @@ fun DeckOSScreen(
             )
 
             Spacer(Modifier.height(12.dp))
+
+            X11Card(
+                serverStatus = serverStatus,
+                clientStatus = clientStatus,
+                onTestWindow = onTestWindow,
+                onRestartX11 = onRestartX11,
+                onStopX11 = onStopX11,
+            )
 
             statuses.forEach { status ->
                 StatusCard(status)
@@ -143,6 +152,97 @@ fun DeckOSScreen(
                 modifier = Modifier.padding(vertical = 6.dp),
             )
         }
+    }
+}
+
+@Composable
+private fun X11Card(
+    serverStatus: X11ServerStatus,
+    clientStatus: X11ClientStatus,
+    onTestWindow: () -> Unit,
+    onRestartX11: () -> Unit,
+    onStopX11: () -> Unit,
+) {
+    val headline = when {
+        serverStatus.running -> "X11 server running"
+        serverStatus.disabled -> "X11 server stopped"
+        else -> "X11 server starting"
+    }
+    val detail = when {
+        serverStatus.running -> "display ${X11Server.DISPLAY}  ·  pid ${serverStatus.pid}  ·  " +
+            if (serverStatus.socketReady) "socket ready" else "socket pending"
+        serverStatus.disabled -> "Stopped on request"
+        else -> "Waiting for the server process"
+    }
+    val clientLine = when {
+        clientStatus.running -> "Test window open (pid ${clientStatus.pid})"
+        else -> "No test window"
+    }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, DeckOutline, RoundedCornerShape(20.dp)),
+        color = DeckSurface,
+        shape = RoundedCornerShape(20.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(9.dp)
+                        .background(
+                            color = if (serverStatus.running) DeckCyan else Color(0xFF3A4A5E),
+                            shape = CircleShape,
+                        ),
+                )
+                Text(
+                    text = headline,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+            Text(
+                text = detail,
+                style = MaterialTheme.typography.bodyMedium,
+                color = DeckMuted,
+            )
+            Text(
+                text = clientLine,
+                style = MaterialTheme.typography.bodyMedium,
+                color = DeckMuted,
+            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                SmallAction("Test window", onTestWindow)
+                SmallAction("Restart", onRestartX11)
+                SmallAction("Stop", onStopX11)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SmallAction(label: String, onClick: () -> Unit) {
+    OutlinedButton(
+        onClick = onClick,
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = DeckCyan),
+        shape = RoundedCornerShape(12.dp),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }
 
