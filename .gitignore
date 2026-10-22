@@ -20,6 +20,7 @@ captures/
 # Signing and secrets
 *.jks
 *.keystore
+!keystore/deckos-debug.keystore
 *.p12
 key.properties
 .env

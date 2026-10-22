@@ -32,9 +32,10 @@ class MainActivity : ComponentActivity() {
 
     private fun openX11() {
         runCatching {
+            X11Server.ensureRunning(this)
             startActivity(Intent(this, com.termux.x11.MainActivity::class.java))
         }.onFailure {
-            Toast.makeText(this, "X11 activity is unavailable", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "X11 could not be started", Toast.LENGTH_SHORT).show()
         }
     }
 }

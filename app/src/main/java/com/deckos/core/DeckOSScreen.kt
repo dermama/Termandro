@@ -139,6 +139,8 @@ fun DeckOSScreen(
             style = MaterialTheme.typography.labelMedium,
             color = DeckMuted,
         )
+
+        Spacer(Modifier.height(56.dp))
     }
 }
 

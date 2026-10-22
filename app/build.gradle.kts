@@ -20,6 +20,15 @@ android {
         }
     }
 
+    signingConfigs {
+        getByName("debug") {
+            storeFile = rootProject.file("keystore/deckos-debug.keystore")
+            storePassword = "android"
+            keyAlias = "deckos-debug"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         debug {
             versionNameSuffix = "-debug"
