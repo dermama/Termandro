@@ -77,29 +77,41 @@ fun DeckOSScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(DeckBackground)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp, vertical = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+            .padding(horizontal = 24.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(
-            text = "DeckOS",
-            style = MaterialTheme.typography.displaySmall,
-            fontWeight = FontWeight.Bold,
-            color = DeckCyan,
-        )
-        Text(
-            text = "Light Linux core for Android",
-            style = MaterialTheme.typography.titleMedium,
-            color = DeckMuted,
-        )
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Text(
+                text = "DeckOS",
+                style = MaterialTheme.typography.displaySmall,
+                fontWeight = FontWeight.Bold,
+                color = DeckCyan,
+            )
+            Text(
+                text = "Light Linux core for Android",
+                style = MaterialTheme.typography.titleMedium,
+                color = DeckMuted,
+            )
 
-        Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(12.dp))
 
-        statuses.forEach { status ->
-            StatusCard(status)
+            statuses.forEach { status ->
+                StatusCard(status)
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            Text(
+                text = "arm64-v8a  ·  minSdk 28  ·  targetSdk 28",
+                style = MaterialTheme.typography.labelMedium,
+                color = DeckMuted,
+            )
         }
-
-        Spacer(Modifier.height(8.dp))
 
         Button(
             onClick = onOpenTerminal,
@@ -131,16 +143,6 @@ fun DeckOSScreen(
                 modifier = Modifier.padding(vertical = 6.dp),
             )
         }
-
-        Spacer(Modifier.height(20.dp))
-
-        Text(
-            text = "arm64-v8a  ·  minSdk 28  ·  targetSdk 28",
-            style = MaterialTheme.typography.labelMedium,
-            color = DeckMuted,
-        )
-
-        Spacer(Modifier.height(56.dp))
     }
 }
 
