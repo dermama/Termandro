@@ -158,6 +158,7 @@ class FrontEndActivity : ComponentActivity() {
     private var deepSystemDoze by mutableStateOf(true)
     private var freezeBloatware by mutableStateOf(true)
     private var freezeUserApps by mutableStateOf(false)
+    private var dynamicGovernor by mutableStateOf(true)
     private var prootNoSeccomp by mutableStateOf(false)
     private var prootFastPath by mutableStateOf(true)
     private var cursorComposite by mutableStateOf(false)
@@ -1806,6 +1807,7 @@ class FrontEndActivity : ComponentActivity() {
             deepSystemDoze = deepSystemDoze,
             freezeBloatware = freezeBloatware,
             freezeUserApps = freezeUserApps,
+            dynamicGovernor = dynamicGovernor,
             prootNoSeccomp = prootNoSeccomp, prootFastPath = prootFastPath, cursorComposite = cursorComposite,
             guestHostname = guestHostname, phantomWarning = phantomWarning,
             onClientOverride = { on -> SessionPrefs.setClientCpusOverride(this, on); clientOverride = on },
@@ -1824,6 +1826,7 @@ class FrontEndActivity : ComponentActivity() {
             onDeepSystemDoze = { on -> SessionPrefs.setDeepSystemDoze(this, on); deepSystemDoze = on },
             onFreezeBloatware = { on -> SessionPrefs.setFreezeBloatware(this, on); freezeBloatware = on },
             onFreezeUserApps = { on -> SessionPrefs.setFreezeUserApps(this, on); freezeUserApps = on },
+            onDynamicGovernor = { on -> SessionPrefs.setDynamicGovernor(this, on); dynamicGovernor = on },
             onProotNoSeccomp = { on -> SessionPrefs.setProotNoSeccomp(this, on); prootNoSeccomp = on },
             onProotFastPath = { on -> SessionPrefs.setProotFastPath(this, on); prootFastPath = on },
             onCursorComposite = { on -> SessionPrefs.setCursorComposite(this, on); cursorComposite = on },
@@ -2012,6 +2015,7 @@ class FrontEndActivity : ComponentActivity() {
         deepSystemDoze = SessionPrefs.deepSystemDoze(this)
         freezeBloatware = SessionPrefs.freezeBloatware(this)
         freezeUserApps = SessionPrefs.freezeUserApps(this)
+        dynamicGovernor = SessionPrefs.dynamicGovernor(this)
         prootNoSeccomp = SessionPrefs.prootNoSeccomp(this)
         prootFastPath = SessionPrefs.prootFastPath(this)
         cursorComposite = SessionPrefs.cursorComposite(this)

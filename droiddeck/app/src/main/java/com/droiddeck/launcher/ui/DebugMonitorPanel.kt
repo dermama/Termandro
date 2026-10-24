@@ -106,7 +106,8 @@ fun DebugMonitorPanel(onBack: () -> Unit) {
                 PrivilegedBridge.refresh()
                 snapshot = collectSnapshot(ctx, snapshot.logLines)
                 liveMetrics = com.droiddeck.launcher.core.privileged.GameModeEngine.runLiveVerification(ctx) +
-                    com.droiddeck.launcher.core.privileged.AppFreezerEngine.runDiagnostic(ctx)
+                    com.droiddeck.launcher.core.privileged.AppFreezerEngine.runDiagnostic(ctx) +
+                    com.droiddeck.launcher.core.privileged.DynamicAdaptiveGovernor.getDiagnosticReport(ctx)
             }
         }
     }
@@ -179,7 +180,8 @@ fun DebugMonitorPanel(onBack: () -> Unit) {
                                     verificationReport = r
                                     liveMetrics = withContext(Dispatchers.IO) {
                                         com.droiddeck.launcher.core.privileged.GameModeEngine.runLiveVerification(ctx) +
-                                        com.droiddeck.launcher.core.privileged.AppFreezerEngine.runDiagnostic(ctx)
+                                        com.droiddeck.launcher.core.privileged.AppFreezerEngine.runDiagnostic(ctx) +
+                                        com.droiddeck.launcher.core.privileged.DynamicAdaptiveGovernor.getDiagnosticReport(ctx)
                                     }
                                     verifying = false
                                 }
@@ -198,7 +200,8 @@ fun DebugMonitorPanel(onBack: () -> Unit) {
                                     verificationReport = r
                                     liveMetrics = withContext(Dispatchers.IO) {
                                         com.droiddeck.launcher.core.privileged.GameModeEngine.runLiveVerification(ctx) +
-                                        com.droiddeck.launcher.core.privileged.AppFreezerEngine.runDiagnostic(ctx)
+                                        com.droiddeck.launcher.core.privileged.AppFreezerEngine.runDiagnostic(ctx) +
+                                        com.droiddeck.launcher.core.privileged.DynamicAdaptiveGovernor.getDiagnosticReport(ctx)
                                     }
                                     verifying = false
                                 }

@@ -555,6 +555,8 @@
     <string name="perf_freeze_bloatware_hint">يضع خدمات Bixby، وفيسبوك الخلفية، وتتبع النشاط في نوم عميق لمنع استيقاظ المعالج أثناء اللعب.</string>
     <string name="perf_freeze_user_apps">تجميد كافة التطبيقات المحملة أثناء اللعب</string>
     <string name="perf_freeze_user_apps_hint">يجمد كافة التطبيقات المحملة أثناء اللعب لمنع أي استيقاظ عشوائي للمعالج، وتستعاد فور الخروج بدون فقدان أي بيانات.</string>
+    <string name="perf_dynamic_governor">المعدّل التكيفي الذكي لحالة الهاتف (مرن وخفيف)</string>
+    <string name="perf_dynamic_governor_hint">يراقب حرارة الهاتف وحالة المعالج في الوقت الفعلي؛ يحافظ على وضع بارد ومتوازن افتراضياً، ويخفف العمليات الخلفية فوراً عند ارتفاع الحرارة، ويمنح دفعة أداء آمنة إذا كان الهاتف بارداً.</string>
     <string name="perf_fixes">إصلاحات الجلسة</string>
     <string name="perf_sysmem">Turnip: التصيير عبر sysmem</string>
     <string name="perf_sysmem_hint">أسرع لعميل Steam؛ في الألعاب يختار برنامج التشغيل بين العرض المقسّم إلى مربعات والعرض في ذاكرة النظام لكل مرحلة. مطلوب على Adreno 710/720/722.</string>

@@ -562,6 +562,8 @@
     <string name="perf_freeze_bloatware_hint">Puts Bixby, Facebook background daemons, Digital Wellbeing, and OEM telemetry into deep sleep during play.</string>
     <string name="perf_freeze_user_apps">Deep Freeze 3rd Party User Apps</string>
     <string name="perf_freeze_user_apps_hint">Suspends all user-installed apps during gameplay for zero wakeups. Restores instantly on exit.</string>
+    <string name="perf_dynamic_governor">Dynamic Adaptive Load Balancer (Light &amp; Elastic)</string>
+    <string name="perf_dynamic_governor_hint">Monitors device thermal state and load in real time. Balanced by default; throttles background load when hot and safely boosts priority when cool.</string>
     <string name="perf_fixes">Session fixes</string>
     <string name="perf_sysmem">Turnip: sysmem rendering</string>
     <string name="perf_sysmem_hint">Faster for the Steam client; in games the driver picks tile or system-memory rendering per pass. Required on Adreno 710/720/722.</string>

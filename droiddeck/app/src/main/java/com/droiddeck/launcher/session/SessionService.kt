@@ -611,6 +611,7 @@ class SessionService : Service() {
             raiseTracer(pid, gen)
             SessionEvents.guestStarted(pid)
             com.droiddeck.launcher.core.privileged.GameModeEngine.boostSessionProcess(this, pid, gen)
+            com.droiddeck.launcher.core.privileged.DynamicAdaptiveGovernor.start(this, gen, pid)
         } else {
             SessionEvents.record("guest.start_failed", mapOf("pid" to pid))
             SessionEvents.fail("GUEST_START_FAILED", "The guest process could not be started", pid)
@@ -1670,6 +1671,7 @@ class SessionService : Service() {
         GameThreadHints.stop()
         com.droiddeck.launcher.core.privileged.GameModeEngine.restore(this, sessionGen)
         com.droiddeck.launcher.core.privileged.AppFreezerEngine.restore(this, sessionGen)
+        com.droiddeck.launcher.core.privileged.DynamicAdaptiveGovernor.stop(this)
         SessionEvents.transition(SessionPhase.STOPPING, "session.stopping", mapOf("status" to status))
         suspendOperationPending = false
         freezePending = false
@@ -1746,6 +1748,7 @@ class SessionService : Service() {
         GameThreadHints.stop() // also when the session never got as far as running
         com.droiddeck.launcher.core.privileged.GameModeEngine.restore(this, sessionGen)
         com.droiddeck.launcher.core.privileged.AppFreezerEngine.restore(this, sessionGen)
+        com.droiddeck.launcher.core.privileged.DynamicAdaptiveGovernor.stop(this)
         if (screenReceiverRegistered) {
             unregisterReceiver(screenReceiver)
             screenReceiverRegistered = false

@@ -49,6 +49,7 @@ fun PerformancePage(
     deepSystemDoze: Boolean = true,
     freezeBloatware: Boolean = true,
     freezeUserApps: Boolean = false,
+    dynamicGovernor: Boolean = true,
     prootNoSeccomp: Boolean,
     prootFastPath: Boolean,
     cursorComposite: Boolean,
@@ -70,6 +71,7 @@ fun PerformancePage(
     onDeepSystemDoze: (Boolean) -> Unit = {},
     onFreezeBloatware: (Boolean) -> Unit = {},
     onFreezeUserApps: (Boolean) -> Unit = {},
+    onDynamicGovernor: (Boolean) -> Unit = {},
     onProotNoSeccomp: (Boolean) -> Unit,
     onProotFastPath: (Boolean) -> Unit,
     onCursorComposite: (Boolean) -> Unit,
@@ -158,6 +160,11 @@ fun PerformancePage(
                 host, "freezeuserapps", stringResource(R.string.perf_freeze_user_apps),
                 stringResource(R.string.perf_freeze_user_apps_hint),
                 freezeUserApps, onChange = onFreezeUserApps,
+            )
+            ToggleRow(
+                host, "dynamicgovernor", stringResource(R.string.perf_dynamic_governor),
+                stringResource(R.string.perf_dynamic_governor_hint),
+                dynamicGovernor, onChange = onDynamicGovernor,
             )
         }
         SettingsGroup(stringResource(R.string.perf_fixes)) {

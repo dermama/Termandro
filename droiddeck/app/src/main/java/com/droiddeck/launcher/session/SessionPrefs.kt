@@ -504,6 +504,13 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("freezeUserApps", on).apply()
     }
 
+    /** Dynamic Adaptive Governor — monitors device thermal state and flexes system load automatically. */
+    fun dynamicGovernor(context: Context): Boolean = prefs(context).getBoolean("dynamicGovernor", true)
+
+    fun setDynamicGovernor(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("dynamicGovernor", on).apply()
+    }
+
     /** Whether the game's busiest threads are named to the power HAL for a boost (GameThreadHints). */
     fun gameThreadHints(context: Context): Boolean = prefs(context).getBoolean("gameThreadHints", true)
 
