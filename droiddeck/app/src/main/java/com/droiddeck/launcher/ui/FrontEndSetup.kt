@@ -686,7 +686,11 @@ private fun AdvancedSetupTab(
                         onClick = {
                             scope.launch {
                                 verifying = true
-                                val r = withContext(Dispatchers.IO) { com.droiddeck.launcher.core.privileged.GameModeEngine.testApplyNow(ctx) }
+                                val r = withContext(Dispatchers.IO) {
+                                    val gm = com.droiddeck.launcher.core.privileged.GameModeEngine.testApplyNow(ctx)
+                                    val fz = com.droiddeck.launcher.core.privileged.AppFreezerEngine.apply(ctx, 999)
+                                    "$gm\n\n=== APP FREEZER ===\n$fz"
+                                }
                                 verificationReport = r
                                 liveMetrics = withContext(Dispatchers.IO) {
                                     com.droiddeck.launcher.core.privileged.GameModeEngine.runLiveVerification(ctx) +
@@ -706,7 +710,11 @@ private fun AdvancedSetupTab(
                         onClick = {
                             scope.launch {
                                 verifying = true
-                                val r = withContext(Dispatchers.IO) { com.droiddeck.launcher.core.privileged.GameModeEngine.testRestoreNow(ctx) }
+                                val r = withContext(Dispatchers.IO) {
+                                    val gm = com.droiddeck.launcher.core.privileged.GameModeEngine.testRestoreNow(ctx)
+                                    com.droiddeck.launcher.core.privileged.AppFreezerEngine.restore(ctx, 999)
+                                    "$gm\n\n=== APP FREEZER ===\napp freezer: restored (all packages unsuspended)"
+                                }
                                 verificationReport = r
                                 liveMetrics = withContext(Dispatchers.IO) {
                                     com.droiddeck.launcher.core.privileged.GameModeEngine.runLiveVerification(ctx) +
