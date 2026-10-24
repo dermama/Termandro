@@ -7,6 +7,7 @@ sources/*
 STATE.md
 *.log
 .droiddeck_git_backup/
+.agents/
 
 # Android / Gradle
 .gradle/

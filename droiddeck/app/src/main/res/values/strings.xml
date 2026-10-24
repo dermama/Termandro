@@ -552,6 +552,16 @@
     <string name="perf_gpu">GPU</string>
     <string name="perf_gpuclock">Hold the GPU at its top clock</string>
     <string name="perf_gpuclock_hint">Adreno only. Fewer hitches, more battery use and heat.</string>
+    <string name="perf_game_mode_engine">Smart Load Reducer (Cool &amp; Efficient)</string>
+    <string name="perf_game_mode_engine_hint">Cleans cached RAM, caps idle background apps to 4, isolates CPU cores (2-6), and keeps clocks dynamic to eliminate heat and background stutter.</string>
+    <string name="perf_game_mode_aggressive">Aggressive Turbo Mode (Higher Heat)</string>
+    <string name="perf_game_mode_aggressive_hint">Forces Samsung Enhanced Processing and prime Cortex-X4 core. Off by default; produces noticeably higher heat and battery drain.</string>
+    <string name="perf_deep_doze">Deep System Doze (Freezes Background OS)</string>
+    <string name="perf_deep_doze_hint">Suspends Android background alarms, wakelocks, and network polling across the OS while exempting the game.</string>
+    <string name="perf_freeze_bloatware">Freeze Non-Essential Bloatware &amp; Telemetry</string>
+    <string name="perf_freeze_bloatware_hint">Puts Bixby, Facebook background daemons, Digital Wellbeing, and OEM telemetry into deep sleep during play.</string>
+    <string name="perf_freeze_user_apps">Deep Freeze 3rd Party User Apps</string>
+    <string name="perf_freeze_user_apps_hint">Suspends all user-installed apps during gameplay for zero wakeups. Restores instantly on exit.</string>
     <string name="perf_fixes">Session fixes</string>
     <string name="perf_sysmem">Turnip: sysmem rendering</string>
     <string name="perf_sysmem_hint">Faster for the Steam client; in games the driver picks tile or system-memory rendering per pass. Required on Adreno 710/720/722.</string>

@@ -92,10 +92,15 @@ object PrivilegedBridge {
         }.start()
     }
 
-    fun execute(command: String): PrivilegedResult = when (_status.value.mode) {
-        PrivilegedMode.EMBEDDED_DAEMON -> executeViaEmbeddedServer(command)
-        PrivilegedMode.SHIZUKU_APP     -> executeViaShizuku(command)
-        else -> PrivilegedResult(-1, "No privileged backend active.", PrivilegedMode.NONE)
+    fun execute(command: String): PrivilegedResult {
+        if (_status.value.mode == PrivilegedMode.NONE) {
+            refresh()
+        }
+        return when (_status.value.mode) {
+            PrivilegedMode.EMBEDDED_DAEMON -> executeViaEmbeddedServer(command)
+            PrivilegedMode.SHIZUKU_APP     -> executeViaShizuku(command)
+            else -> PrivilegedResult(-1, "No privileged backend active.", PrivilegedMode.NONE)
+        }
     }
 
     fun disablePhantomProcesses(): Boolean {

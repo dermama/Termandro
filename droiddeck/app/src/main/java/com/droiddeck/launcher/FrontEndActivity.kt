@@ -153,6 +153,11 @@ class FrontEndActivity : ComponentActivity() {
     private var fsyncFirst by mutableStateOf(false)
     private var gamescopeRealtime by mutableStateOf(false)
     private var gpuClockPin by mutableStateOf(false)
+    private var gameModeEngine by mutableStateOf(true)
+    private var gameModeAggressive by mutableStateOf(false)
+    private var deepSystemDoze by mutableStateOf(true)
+    private var freezeBloatware by mutableStateOf(true)
+    private var freezeUserApps by mutableStateOf(false)
     private var prootNoSeccomp by mutableStateOf(false)
     private var prootFastPath by mutableStateOf(true)
     private var cursorComposite by mutableStateOf(false)
@@ -1796,6 +1801,11 @@ class FrontEndActivity : ComponentActivity() {
             fsyncFirst = fsyncFirst,
             gamescopeRealtime = gamescopeRealtime,
             gpuClockPin = gpuClockPin,
+            gameModeEngine = gameModeEngine,
+            gameModeAggressive = gameModeAggressive,
+            deepSystemDoze = deepSystemDoze,
+            freezeBloatware = freezeBloatware,
+            freezeUserApps = freezeUserApps,
             prootNoSeccomp = prootNoSeccomp, prootFastPath = prootFastPath, cursorComposite = cursorComposite,
             guestHostname = guestHostname, phantomWarning = phantomWarning,
             onClientOverride = { on -> SessionPrefs.setClientCpusOverride(this, on); clientOverride = on },
@@ -1809,6 +1819,11 @@ class FrontEndActivity : ComponentActivity() {
             onFsyncFirst = { on -> SessionPrefs.setFsyncFirst(this, on); fsyncFirst = on },
             onGamescopeRealtime = { on -> SessionPrefs.setGamescopeRealtime(this, on); gamescopeRealtime = on },
             onGpuClockPin = { on -> SessionPrefs.setGpuClockPin(this, on); gpuClockPin = on },
+            onGameModeEngine = { on -> SessionPrefs.setGameModeEngine(this, on); gameModeEngine = on },
+            onGameModeAggressive = { on -> SessionPrefs.setGameModeAggressive(this, on); gameModeAggressive = on },
+            onDeepSystemDoze = { on -> SessionPrefs.setDeepSystemDoze(this, on); deepSystemDoze = on },
+            onFreezeBloatware = { on -> SessionPrefs.setFreezeBloatware(this, on); freezeBloatware = on },
+            onFreezeUserApps = { on -> SessionPrefs.setFreezeUserApps(this, on); freezeUserApps = on },
             onProotNoSeccomp = { on -> SessionPrefs.setProotNoSeccomp(this, on); prootNoSeccomp = on },
             onProotFastPath = { on -> SessionPrefs.setProotFastPath(this, on); prootFastPath = on },
             onCursorComposite = { on -> SessionPrefs.setCursorComposite(this, on); cursorComposite = on },
@@ -1992,6 +2007,11 @@ class FrontEndActivity : ComponentActivity() {
         fsyncFirst = SessionPrefs.fsyncFirst(this)
         gamescopeRealtime = SessionPrefs.gamescopeRealtime(this)
         gpuClockPin = SessionPrefs.gpuClockPin(this)
+        gameModeEngine = SessionPrefs.gameModeEngine(this)
+        gameModeAggressive = SessionPrefs.gameModeAggressive(this)
+        deepSystemDoze = SessionPrefs.deepSystemDoze(this)
+        freezeBloatware = SessionPrefs.freezeBloatware(this)
+        freezeUserApps = SessionPrefs.freezeUserApps(this)
         prootNoSeccomp = SessionPrefs.prootNoSeccomp(this)
         prootFastPath = SessionPrefs.prootFastPath(this)
         cursorComposite = SessionPrefs.cursorComposite(this)

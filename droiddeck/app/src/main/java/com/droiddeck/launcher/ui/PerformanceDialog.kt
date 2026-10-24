@@ -44,6 +44,11 @@ fun PerformancePage(
     fsyncFirst: Boolean,
     gamescopeRealtime: Boolean,
     gpuClockPin: Boolean,
+    gameModeEngine: Boolean = true,
+    gameModeAggressive: Boolean = false,
+    deepSystemDoze: Boolean = true,
+    freezeBloatware: Boolean = true,
+    freezeUserApps: Boolean = false,
     prootNoSeccomp: Boolean,
     prootFastPath: Boolean,
     cursorComposite: Boolean,
@@ -60,6 +65,11 @@ fun PerformancePage(
     onFsyncFirst: (Boolean) -> Unit,
     onGamescopeRealtime: (Boolean) -> Unit,
     onGpuClockPin: (Boolean) -> Unit,
+    onGameModeEngine: (Boolean) -> Unit = {},
+    onGameModeAggressive: (Boolean) -> Unit = {},
+    onDeepSystemDoze: (Boolean) -> Unit = {},
+    onFreezeBloatware: (Boolean) -> Unit = {},
+    onFreezeUserApps: (Boolean) -> Unit = {},
     onProotNoSeccomp: (Boolean) -> Unit,
     onProotFastPath: (Boolean) -> Unit,
     onCursorComposite: (Boolean) -> Unit,
@@ -121,6 +131,33 @@ fun PerformancePage(
                 host, "gpuclock", stringResource(R.string.perf_gpuclock),
                 stringResource(R.string.perf_gpuclock_hint),
                 gpuClockPin, onChange = onGpuClockPin,
+            )
+            ToggleRow(
+                host, "gamemode", stringResource(R.string.perf_game_mode_engine),
+                stringResource(R.string.perf_game_mode_engine_hint),
+                gameModeEngine, onChange = onGameModeEngine,
+            )
+            ToggleRow(
+                host, "gamemode_turbo", stringResource(R.string.perf_game_mode_aggressive),
+                stringResource(R.string.perf_game_mode_aggressive_hint),
+                gameModeAggressive, enabled = gameModeEngine, onChange = onGameModeAggressive,
+            )
+        }
+        SettingsGroup(stringResource(R.string.perf_deep_doze)) {
+            ToggleRow(
+                host, "deepdoze", stringResource(R.string.perf_deep_doze),
+                stringResource(R.string.perf_deep_doze_hint),
+                deepSystemDoze, onChange = onDeepSystemDoze,
+            )
+            ToggleRow(
+                host, "freezebloat", stringResource(R.string.perf_freeze_bloatware),
+                stringResource(R.string.perf_freeze_bloatware_hint),
+                freezeBloatware, onChange = onFreezeBloatware,
+            )
+            ToggleRow(
+                host, "freezeuserapps", stringResource(R.string.perf_freeze_user_apps),
+                stringResource(R.string.perf_freeze_user_apps_hint),
+                freezeUserApps, onChange = onFreezeUserApps,
             )
         }
         SettingsGroup(stringResource(R.string.perf_fixes)) {

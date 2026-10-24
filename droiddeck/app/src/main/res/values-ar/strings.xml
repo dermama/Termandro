@@ -545,6 +545,16 @@
     <string name="perf_gpu">GPU</string>
     <string name="perf_gpuclock">تثبيت GPU على أعلى تردد له</string>
     <string name="perf_gpuclock_hint">لـ Adreno فقط. تقطّع أقل، مع استهلاك أكبر للبطارية والحرارة.</string>
+    <string name="perf_game_mode_engine">محرك تخفيف الحمل الذكي (بارد وموفر للموارد)</string>
+    <string name="perf_game_mode_engine_hint">يفرغ الرام المخزنة، يحد العمليات الخلفية لـ 4، يعزل أنوية الأداء (2-6)، ويبقي الترددات متكيفة لتقليل الحمل والحرارة ومنع الخنق.</string>
+    <string name="perf_game_mode_aggressive">وضع المعالجة الفائقة Turbo (حرارة واستهلاك أعلى)</string>
+    <string name="perf_game_mode_aggressive_hint">اختياري: يفرض المعالجة المحسنة في سامسونج وتفعيل النواة الخارقة Cortex-X4. معطل افتراضياً لأنه يرفع الحرارة والبطارية بشكل ملحوظ.</string>
+    <string name="perf_deep_doze">وضع النوم العميق لنظام أندرويد (Doze)</string>
+    <string name="perf_deep_doze_hint">يجمد مؤقتات أندرويد وطلبات الاستيقاظ والشبكة في الخلفية على مستوى النظام بالكامل مع استثناء اللعبة.</string>
+    <string name="perf_freeze_bloatware">تجميد خدمات النظام غير الضرورية والتعقب</string>
+    <string name="perf_freeze_bloatware_hint">يضع خدمات Bixby، وفيسبوك الخلفية، وتتبع النشاط في نوم عميق لمنع استيقاظ المعالج أثناء اللعب.</string>
+    <string name="perf_freeze_user_apps">تجميد كافة التطبيقات المحملة أثناء اللعب</string>
+    <string name="perf_freeze_user_apps_hint">يجمد كافة التطبيقات المحملة أثناء اللعب لمنع أي استيقاظ عشوائي للمعالج، وتستعاد فور الخروج بدون فقدان أي بيانات.</string>
     <string name="perf_fixes">إصلاحات الجلسة</string>
     <string name="perf_sysmem">Turnip: التصيير عبر sysmem</string>
     <string name="perf_sysmem_hint">أسرع لعميل Steam؛ في الألعاب يختار برنامج التشغيل بين العرض المقسّم إلى مربعات والعرض في ذاكرة النظام لكل مرحلة. مطلوب على Adreno 710/720/722.</string>

@@ -469,6 +469,41 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("gpuClockPin", on).apply()
     }
 
+    /** Game Mode Engine — privileged low-overhead performance governor and RAM trimmer. */
+    fun gameModeEngine(context: Context): Boolean = prefs(context).getBoolean("gameModeEngine", true)
+
+    fun setGameModeEngine(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("gameModeEngine", on).apply()
+    }
+
+    /** Aggressive Turbo Mode — enables Samsung Enhanced Processing and fixed performance mode. Off by default to avoid heat. */
+    fun gameModeAggressive(context: Context): Boolean = prefs(context).getBoolean("gameModeAggressive", false)
+
+    fun setGameModeAggressive(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("gameModeAggressive", on).apply()
+    }
+
+    /** Deep System Doze — forces Android framework into deep idle mode during gameplay. */
+    fun deepSystemDoze(context: Context): Boolean = prefs(context).getBoolean("deepSystemDoze", true)
+
+    fun setDeepSystemDoze(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("deepSystemDoze", on).apply()
+    }
+
+    /** Bloatware & Telemetry Freeze — suspends Bixby, Facebook services, Digital Wellbeing during gameplay. */
+    fun freezeBloatware(context: Context): Boolean = prefs(context).getBoolean("freezeBloatware", true)
+
+    fun setFreezeBloatware(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("freezeBloatware", on).apply()
+    }
+
+    /** 3rd Party User Apps Freeze — suspends all user-installed apps during gameplay for zero wakeups. */
+    fun freezeUserApps(context: Context): Boolean = prefs(context).getBoolean("freezeUserApps", false)
+
+    fun setFreezeUserApps(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("freezeUserApps", on).apply()
+    }
+
     /** Whether the game's busiest threads are named to the power HAL for a boost (GameThreadHints). */
     fun gameThreadHints(context: Context): Boolean = prefs(context).getBoolean("gameThreadHints", true)
 

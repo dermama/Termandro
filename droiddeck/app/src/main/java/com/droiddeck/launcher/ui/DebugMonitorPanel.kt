@@ -93,6 +93,9 @@ fun DebugMonitorPanel(onBack: () -> Unit) {
     var commandInput by remember { mutableStateOf("") }
     var commandOutput by remember { mutableStateOf("") }
     var running by remember { mutableStateOf(false) }
+    var liveMetrics by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var verificationReport by remember { mutableStateOf<String?>(null) }
+    var verifying by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     // Auto-refresh every 2 s
@@ -102,6 +105,8 @@ fun DebugMonitorPanel(onBack: () -> Unit) {
             withContext(Dispatchers.IO) {
                 PrivilegedBridge.refresh()
                 snapshot = collectSnapshot(ctx, snapshot.logLines)
+                liveMetrics = com.droiddeck.launcher.core.privileged.GameModeEngine.runLiveVerification(ctx) +
+                    com.droiddeck.launcher.core.privileged.AppFreezerEngine.runDiagnostic(ctx)
             }
         }
     }
@@ -138,6 +143,86 @@ fun DebugMonitorPanel(onBack: () -> Unit) {
                     MonRow("Uptime", snapshot.uptime)
                     MonRow("RAM", "${snapshot.availRamMb} / ${snapshot.totalRamMb} MB free")
                     MonRow("Model", "${Build.MANUFACTURER} ${Build.MODEL}")
+                }
+            }
+
+            // ── Game Mode & Performance Engine ──────────────────
+            SettingsGroup("Game Mode & Performance Engine") {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    val active = com.droiddeck.launcher.core.privileged.GameModeEngine.isActive()
+                    val aggressive = com.droiddeck.launcher.core.privileged.GameModeEngine.isAggressiveActive()
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Active Profile", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            if (active) (if (aggressive) "🔥 TURBO (Aggressive)" else "❄️ COOL (Load Reducer)") else "⚪ STANDBY (Launches with game)",
+                            fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                            color = if (active) (if (aggressive) MaterialTheme.colorScheme.tertiary else LocalPalette.current.good) else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    // Display actual live queries from the Android OS
+                    liveMetrics.forEach { (label, value) ->
+                        MonRow(label, value)
+                    }
+
+                    MonRow("Affinity Target", if (aggressive) "Cores 2-7 (0xfc - All Perf + Prime)" else "Cores 2-6 (0x7c - 5x A720 Perf, X4 Off)")
+
+                    Spacer(Modifier.height(4.dp))
+                    Text("Live Verification & Diagnostic Test:", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    verifying = true
+                                    val r = withContext(Dispatchers.IO) { com.droiddeck.launcher.core.privileged.GameModeEngine.testApplyNow(ctx) }
+                                    verificationReport = r
+                                    liveMetrics = withContext(Dispatchers.IO) {
+                                        com.droiddeck.launcher.core.privileged.GameModeEngine.runLiveVerification(ctx) +
+                                        com.droiddeck.launcher.core.privileged.AppFreezerEngine.runDiagnostic(ctx)
+                                    }
+                                    verifying = false
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            enabled = snapshot.privilegedStatus.isActive && !verifying,
+                            shape = RoundedCornerShape(8.dp),
+                        ) {
+                            Text(if (verifying) "Testing..." else "Test Apply", fontSize = 11.sp)
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                scope.launch {
+                                    verifying = true
+                                    val r = withContext(Dispatchers.IO) { com.droiddeck.launcher.core.privileged.GameModeEngine.testRestoreNow(ctx) }
+                                    verificationReport = r
+                                    liveMetrics = withContext(Dispatchers.IO) {
+                                        com.droiddeck.launcher.core.privileged.GameModeEngine.runLiveVerification(ctx) +
+                                        com.droiddeck.launcher.core.privileged.AppFreezerEngine.runDiagnostic(ctx)
+                                    }
+                                    verifying = false
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            enabled = snapshot.privilegedStatus.isActive && !verifying,
+                            shape = RoundedCornerShape(8.dp),
+                        ) {
+                            Text("Restore Defaults", fontSize = 11.sp)
+                        }
+                    }
+
+                    if (!verificationReport.isNullOrEmpty()) {
+                        Box(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant).padding(10.dp)
+                        ) {
+                            Column {
+                                Text(verificationReport!!, fontSize = 10.sp, fontFamily = FontFamily.Monospace,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                TextButton(onClick = { verificationReport = null }) { Text("Dismiss", fontSize = 11.sp) }
+                            }
+                        }
+                    }
                 }
             }
 

@@ -84,7 +84,7 @@ class WirelessAdbPairingService : Service() {
         }
         runCatching { manager.discoverServices("$PAIRING_TYPE.", NsdManager.PROTOCOL_DNS_SD, listener) }
             .onSuccess { nsd = manager; discovery = listener }
-            .onFailure { finish(Stage.Failed(getString(R.string.adbpair_discovery_failed, it.localizedMessage.toString()))) }
+            .onFailure { finish(Stage.Failed(getString(R.string.adbpair_discovery_failed, it.localizedMessage ?: "unknown"))) }
     }
 
     private fun resolveListener() = object : NsdManager.ResolveListener {
