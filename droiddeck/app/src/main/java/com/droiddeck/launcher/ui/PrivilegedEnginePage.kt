@@ -3,6 +3,7 @@ package com.droiddeck.launcher.ui
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -262,51 +263,146 @@ private fun DaemonActiveCard(status: PrivilegedStatus) {
     }
 }
 
+private fun isDevOptionsOn(ctx: Context): Boolean = runCatching {
+    android.provider.Settings.Global.getInt(
+        ctx.contentResolver,
+        android.provider.Settings.Global.DEVELOPMENT_SETTINGS_ENABLED,
+        0
+    ) != 0
+}.getOrDefault(false)
+
+private fun isWirelessAdbOn(ctx: Context): Boolean = runCatching {
+    android.provider.Settings.Global.getInt(
+        ctx.contentResolver,
+        "adb_wifi_enabled",
+        0
+    ) != 0
+}.getOrDefault(false)
+
+private fun openDevOptions(ctx: Context) {
+    val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS).apply {
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        putExtra(":settings:fragment_args_key", "toggle_adb_wireless")
+    }
+    try {
+        ctx.startActivity(intent)
+    } catch (_: Exception) {
+        try {
+            ctx.startActivity(Intent(android.provider.Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (_: Exception) {}
+    }
+}
+
+private fun openAboutPhone(ctx: Context) {
+    val intent = Intent(android.provider.Settings.ACTION_DEVICE_INFO_SETTINGS).apply {
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    try {
+        ctx.startActivity(intent)
+    } catch (_: Exception) {
+        try {
+            ctx.startActivity(Intent(android.provider.Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (_: Exception) {}
+    }
+}
+
 @Composable
 private fun DaemonActivationCard(ctx: Context) {
     val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
     val cmd = PrivilegedBridge.getStarterAdbCommand(ctx)
     val scope = rememberCoroutineScope()
     var startingAdb by remember { mutableStateOf(false) }
 
+    val devOptionsOn = remember { mutableStateOf(isDevOptionsOn(ctx)) }
+    val wirelessAdbOn = remember { mutableStateOf(isWirelessAdbOn(ctx)) }
+
+    // Re-check settings state periodically
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            devOptionsOn.value = isDevOptionsOn(ctx)
+            wirelessAdbOn.value = isWirelessAdbOn(ctx)
+            delay(1_500)
+        }
+    }
+
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(colors.surface)
             .border(1.dp, colors.outlineVariant, RoundedCornerShape(10.dp)).padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text("Option 1 — Wireless ADB One-Tap Start (Like Shizuku):", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
-        Text("Starts the daemon directly on the phone using Wireless Debugging — no PC or cable required:", fontSize = 12.sp, color = colors.onSurfaceVariant)
-        
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            PrimaryButton(if (startingAdb) "Starting..." else "Start via Wireless ADB", compact = true, enabled = !startingAdb) {
-                scope.launch {
-                    startingAdb = true
-                    val ok = withContext(Dispatchers.IO) {
-                        com.droiddeck.launcher.core.WirelessAdbFix.startPrivilegedDaemonWithSavedPairing(ctx)
+        Text("Smart Setup Assistant (Like Shizuku):", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
+
+        // ── Step 1: Developer Options ──
+        if (!devOptionsOn.value) {
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(colors.error.copy(alpha = 0.10f))
+                    .border(1.dp, colors.error.copy(alpha = 0.35f), RoundedCornerShape(8.dp)).padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text("⚠️ Step 1: Enable Developer Options", fontWeight = FontWeight.Bold, color = colors.error, fontSize = 13.sp)
+                Text("Developer options are not enabled yet. Tap below to go directly to About Phone -> Software information, then tap 'Build number' 7 times.", fontSize = 12.sp, color = colors.onBackground)
+                PrimaryButton("Open About Phone (Step 1)", compact = true) { openAboutPhone(ctx) }
+            }
+        } else if (!wirelessAdbOn.value) {
+            // ── Step 2: Wireless Debugging Toggle ──
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(colors.tertiary.copy(alpha = 0.12f))
+                    .border(1.dp, colors.tertiary.copy(alpha = 0.40f), RoundedCornerShape(8.dp)).padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text("⚠️ Step 2: Turn ON Wireless Debugging", fontWeight = FontWeight.Bold, color = colors.onBackground, fontSize = 13.sp)
+                Text("Developer options are enabled! Now tap below to open Developer options and switch ON 'Wireless debugging'.", fontSize = 12.sp, color = colors.onSurfaceVariant)
+                PrimaryButton("Open Developer Options & Turn ON", compact = true) { openDevOptions(ctx) }
+            }
+        } else {
+            // ── Step 3: Ready to Start ──
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(pal.good.copy(alpha = 0.10f))
+                    .border(1.dp, pal.good.copy(alpha = 0.35f), RoundedCornerShape(8.dp)).padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text("✅ Wireless Debugging is ON & Ready", fontWeight = FontWeight.Bold, color = pal.good, fontSize = 13.sp)
+                Text("Tap below to activate full system privileges with one touch:", fontSize = 12.sp, color = colors.onSurfaceVariant)
+                PrimaryButton(if (startingAdb) "Activating..." else "Start via Wireless ADB (One-Tap)", compact = true, enabled = !startingAdb) {
+                    scope.launch {
+                        startingAdb = true
+                        val ok = withContext(Dispatchers.IO) {
+                            com.droiddeck.launcher.core.WirelessAdbFix.startPrivilegedDaemonWithSavedPairing(ctx)
+                        }
+                        if (ok) {
+                            withContext(Dispatchers.IO) { PrivilegedBridge.refresh() }
+                            Toast.makeText(ctx, "Privileged Daemon started successfully!", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(ctx, "Pair Wireless Debugging once in Developer Options.", Toast.LENGTH_LONG).show()
+                        }
+                        startingAdb = false
                     }
-                    if (ok) {
-                        withContext(Dispatchers.IO) { PrivilegedBridge.refresh() }
-                        Toast.makeText(ctx, "Privileged Daemon started successfully!", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(ctx, "Wireless Debugging not paired yet. Enable Wireless Debugging in Developer Options.", Toast.LENGTH_LONG).show()
-                    }
-                    startingAdb = false
                 }
             }
         }
 
-        Spacer(Modifier.height(4.dp))
-        Text("Option 2 — Manual Command via ADB Shell:", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
-        Box(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(colors.surfaceVariant).padding(10.dp),
+        // ── Reboot Explanation ──
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(colors.surfaceVariant.copy(alpha = 0.40f)).padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
         ) {
+            Text("ℹ️ What happens when the phone restarts?", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = colors.onBackground)
             Text(
-                cmd,
-                fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = colors.onSurfaceVariant,
-                overflow = TextOverflow.Visible,
+                "When you reboot your phone, Android resets running background services. However, your pairing remains saved! " +
+                "After restarting, simply ensure Wireless Debugging is on and open DroidDeck — it automatically reconnects and restores all privileges.",
+                fontSize = 11.sp, color = colors.onSurfaceVariant,
             )
         }
-        SecondaryButton("Copy Command", compact = true) {
+
+        // ── Manual Fallback ──
+        Text("Alternative — Manual Command via PC / Terminal:", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant)
+        Box(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(colors.surfaceVariant).padding(8.dp),
+        ) {
+            Text(cmd, fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = colors.onSurfaceVariant, overflow = TextOverflow.Visible)
+        }
+        SecondaryButton("Copy ADB Command", compact = true) {
             (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
                 .setPrimaryClip(ClipData.newPlainText("DroidDeck Daemon Command", cmd))
             Toast.makeText(ctx, "Command copied — paste in ADB shell", Toast.LENGTH_SHORT).show()
