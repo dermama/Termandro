@@ -15,6 +15,9 @@
     <!-- L-71: Foreground service type declaration (required API 34+) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
 
+    <!-- L-90: Pack downloads run as foreground dataSync service -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
@@ -53,6 +56,12 @@
                 <action android:name="com.deckos.game.STOP" />
             </intent-filter>
         </receiver>
+
+        <!-- L-90: Extension Pack foreground download + extraction service -->
+        <service
+            android:name=".packs.PackDownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
     </application>
 

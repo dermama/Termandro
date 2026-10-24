@@ -26,13 +26,16 @@ import com.deckos.core.ui.theme.DeckMuted
 import com.deckos.core.ui.theme.DeckOutline
 import com.deckos.core.ui.theme.DeckSurface
 import kotlinx.coroutines.Dispatchers
+import android.content.BroadcastReceiver
+import android.content.Intent
+import android.content.IntentFilter
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
 fun ExtensionPackScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
+    val scope   = rememberCoroutineScope()
     val manager = remember { ExtensionPackManager(context) }
 
     // State map: packId -> PackStatus
@@ -44,6 +47,29 @@ fun ExtensionPackScreen(onBack: () -> Unit) {
             statusMap[pack.id] = if (manager.isInstalled(pack)) PackStatus.Installed
                                  else PackStatus.NotInstalled
         }
+    }
+
+    // Listen for progress broadcasts from PackDownloadService (works even when backgrounded)
+    DisposableEffect(Unit) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(ctx: android.content.Context, intent: Intent) {
+                val packId = intent.getStringExtra(PackDownloadService.EXTRA_PACK_ID) ?: return
+                val status = intent.getStringExtra(PackDownloadService.EXTRA_STATUS)
+                val pct    = intent.getIntExtra(PackDownloadService.EXTRA_PROGRESS, 0) / 100f
+                val msg    = intent.getStringExtra(PackDownloadService.EXTRA_MESSAGE) ?: ""
+                statusMap[packId] = when (status) {
+                    "downloading" -> PackStatus.Downloading(pct, msg)
+                    "verifying"  -> PackStatus.Verifying
+                    "extracting" -> PackStatus.Extracting(pct)
+                    "installed"  -> PackStatus.Installed
+                    "failed"     -> PackStatus.Failed(msg)
+                    else         -> PackStatus.NotInstalled
+                }
+            }
+        }
+        val filter = IntentFilter(PackDownloadService.ACTION_PROGRESS)
+        context.registerReceiver(receiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
+        onDispose { context.unregisterReceiver(receiver) }
     }
 
     Column(
@@ -107,9 +133,9 @@ fun ExtensionPackScreen(onBack: () -> Unit) {
                     pack = pack,
                     status = status,
                     onInstall = {
-                        scope.launch(Dispatchers.IO) {
-                            manager.install(pack) { s -> statusMap[pack.id] = s }
-                        }
+                        // Launch via foreground service — survives app backgrounding
+                        statusMap[pack.id] = PackStatus.Downloading(0f, "Starting…")
+                        PackDownloadService.start(context, pack.id)
                     },
                     onRemove = {
                         scope.launch(Dispatchers.IO) {
