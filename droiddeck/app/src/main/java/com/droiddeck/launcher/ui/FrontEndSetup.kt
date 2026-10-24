@@ -44,6 +44,16 @@ import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.VideogameAsset
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.text.font.FontFamily
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -87,13 +97,18 @@ import com.droiddeck.launcher.R
 
 private enum class CheckState { OK, WARN, BUSY }
 
-private const val STORAGE_TAB = 3
-private const val LAUNCHER_TAB = 2
+private const val OVERVIEW_TAB = 0
+private const val ADVANCED_TAB = 1
+private const val CONTROLLER_TAB = 2
+private const val LAUNCHER_TAB = 3
+private const val STORAGE_TAB = 4
+private const val DIAGNOSTICS_TAB = 5
+private const val GLASSES_TAB = 6
 
 internal object SetupTabs {
     var openLauncher = false
+    var openAdvanced = false
 }
-private const val GLASSES_TAB = 5
 
 @Composable
 private fun CheckRow(state: CheckState, title: String, detail: String?, divider: Boolean = true, action: (@Composable () -> Unit)? = null) {
@@ -184,9 +199,26 @@ internal fun SetupPanel(
         onDismiss = { editDownloadPrefix = false },
         onSave = { a.onDownloadPrefix(it); editDownloadPrefix = false },
     )
-    val tabs = listOf(stringResource(R.string.setup_tab_overview), stringResource(R.string.setup_tab_controller), stringResource(R.string.setup_tab_launcher), stringResource(R.string.setup_tab_storage), stringResource(R.string.setup_tab_diagnostics), stringResource(R.string.setup_tab_glasses))
-    var tab by rememberSaveable { mutableStateOf(if (SetupTabs.openLauncher) LAUNCHER_TAB else 0) }
+    val tabs = listOf(
+        stringResource(R.string.setup_tab_overview),
+        stringResource(R.string.setup_tab_advanced),
+        stringResource(R.string.setup_tab_controller),
+        stringResource(R.string.setup_tab_launcher),
+        stringResource(R.string.setup_tab_storage),
+        stringResource(R.string.setup_tab_diagnostics),
+        stringResource(R.string.setup_tab_glasses),
+    )
+    var tab by rememberSaveable {
+        mutableStateOf(
+            when {
+                SetupTabs.openAdvanced -> ADVANCED_TAB
+                SetupTabs.openLauncher -> LAUNCHER_TAB
+                else -> 0
+            }
+        )
+    }
     SetupTabs.openLauncher = false
+    SetupTabs.openAdvanced = false
     val chipFocus = remember { List(tabs.size) { FocusRequester() } }
     var tabTurned by remember { mutableStateOf(false) }
     val pick: (Int) -> Unit = { i -> tab = i; tabTurned = true }
@@ -220,7 +252,7 @@ internal fun SetupPanel(
             }
             Column(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
                 when (tab) {
-                    0 -> {
+                    OVERVIEW_TAB -> {
                         val gpuCheck: @Composable (Boolean) -> Unit = { divider ->
                             CheckRow(
                                 if (gpuOk) CheckState.OK else CheckState.WARN,
@@ -351,14 +383,17 @@ internal fun SetupPanel(
                             }
                         }
                     }
-                    1 -> {
+                    ADVANCED_TAB -> {
+                        AdvancedSetupTab(host, s, a, wide, onSelect)
+                    }
+                    CONTROLLER_TAB -> {
                         val controller = s.controller
                         if (controller != null && a.controller != null) SettingsGroup(stringResource(R.string.setup_controller)) {
                             ControllerRows(host, s.oscMode, controller, a.controller)
                         }
                         if (s.controller == null || a.controller == null) Note(stringResource(R.string.setup_controller_unavailable))
                     }
-                    2 -> {
+                    LAUNCHER_TAB -> {
                         val look: @Composable () -> Unit = {
                             SettingsGroup(stringResource(R.string.setup_group_look)) {
                                 SettingsRow(stringResource(R.string.setup_theme), stringResource(R.string.setup_theme_hint)) {
@@ -462,11 +497,7 @@ internal fun SetupPanel(
                         } else { look(); device(); art(); download() }
                     }
                     STORAGE_TAB -> StoragePanel(s, a)
-                    4 -> {
-                        SettingsGroup("System Diagnostics & Monitoring") {
-                            ActionRow("Live Debug Monitor", "View real-time memory, processes, system metrics, and run commands", "Open Monitor", onClick = { onSelect("debug-monitor") })
-                            ActionRow("Privileged Engine Settings", "Configure Embedded ADB Daemon, Shizuku integration, and ADB commands", "Configure", onClick = { onSelect("privileged") })
-                        }
+                    DIAGNOSTICS_TAB -> {
                         SettingsGroup(stringResource(R.string.setup_tab_diagnostics)) {
                             ToggleRow(host, "logs", stringResource(R.string.setup_logs), stringResource(R.string.setup_logs_hint), s.logsEnabled) { a.onLogs() }
                             ToggleRow(host, "vacdiag", stringResource(R.string.setup_vac_diag), stringResource(R.string.setup_vac_diag_hint), s.vacDiagnostics) { a.onVacDiagnostics() }
@@ -481,6 +512,273 @@ internal fun SetupPanel(
                     GLASSES_TAB -> GlassesSetupPanel()
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun AdvancedSetupTab(
+    host: MenuHost,
+    s: FrontEndState,
+    a: FrontEndActions,
+    wide: Boolean,
+    onSelect: (String) -> Unit,
+) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val pal = LocalPalette.current
+    val colors = MaterialTheme.colorScheme
+
+    var gameModeEngine by remember { mutableStateOf(SessionPrefs.gameModeEngine(ctx)) }
+    var gameModeAggressive by remember { mutableStateOf(SessionPrefs.gameModeAggressive(ctx)) }
+    var dynamicGovernor by remember { mutableStateOf(SessionPrefs.dynamicGovernor(ctx)) }
+    var deepSystemDoze by remember { mutableStateOf(SessionPrefs.deepSystemDoze(ctx)) }
+    var freezeBloatware by remember { mutableStateOf(SessionPrefs.freezeBloatware(ctx)) }
+    var freezeUserApps by remember { mutableStateOf(SessionPrefs.freezeUserApps(ctx)) }
+
+    var liveMetrics by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var verificationReport by remember { mutableStateOf<String?>(null) }
+    var verifying by remember { mutableStateOf(false) }
+
+    val privStatus by PrivilegedBridge.statusFlow.collectAsState()
+
+    // Query live telemetry while tab is visible
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            withContext(Dispatchers.IO) {
+                val metrics = com.droiddeck.launcher.core.privileged.GameModeEngine.runLiveVerification(ctx) +
+                    com.droiddeck.launcher.core.privileged.AppFreezerEngine.runDiagnostic(ctx) +
+                    com.droiddeck.launcher.core.privileged.DynamicAdaptiveGovernor.getDiagnosticReport(ctx)
+                liveMetrics = metrics
+            }
+            delay(3_000)
+        }
+    }
+
+    val privilegedCard: @Composable () -> Unit = {
+        SettingsGroup(stringResource(R.string.setup_adv_group_privileged)) {
+            CheckRow(
+                if (privStatus.isActive) CheckState.OK else CheckState.WARN,
+                "Privileged Mode: ${privStatus.shortLabel}",
+                if (privStatus.isActive) stringResource(R.string.setup_adv_privileged_active, privStatus.modeLabel)
+                else stringResource(R.string.setup_adv_privileged_inactive),
+                divider = false,
+            ) {
+                SecondaryButton(stringResource(R.string.setup_adv_configure), compact = true) { onSelect("privileged") }
+            }
+        }
+    }
+
+    val gameModeGroup: @Composable () -> Unit = {
+        SettingsGroup(stringResource(R.string.setup_adv_group_gamemode)) {
+            ToggleRow(
+                host = host,
+                key = "adv-gamemode-engine",
+                label = stringResource(R.string.setup_adv_gamemode),
+                hint = stringResource(R.string.setup_adv_gamemode_hint),
+                checked = gameModeEngine,
+            ) { on ->
+                gameModeEngine = on
+                SessionPrefs.setGameModeEngine(ctx, on)
+            }
+            ToggleRow(
+                host = host,
+                key = "adv-gamemode-aggressive",
+                label = stringResource(R.string.setup_adv_aggressive),
+                hint = stringResource(R.string.setup_adv_aggressive_hint),
+                checked = gameModeAggressive,
+                enabled = gameModeEngine,
+            ) { on ->
+                gameModeAggressive = on
+                SessionPrefs.setGameModeAggressive(ctx, on)
+            }
+            ToggleRow(
+                host = host,
+                key = "adv-dynamic-gov",
+                label = stringResource(R.string.setup_adv_dynamic_gov),
+                hint = stringResource(R.string.setup_adv_dynamic_gov_hint),
+                checked = dynamicGovernor,
+                enabled = gameModeEngine,
+            ) { on ->
+                dynamicGovernor = on
+                SessionPrefs.setDynamicGovernor(ctx, on)
+            }
+        }
+    }
+
+    val freezerGroup: @Composable () -> Unit = {
+        SettingsGroup(stringResource(R.string.setup_adv_group_freezer)) {
+            ToggleRow(
+                host = host,
+                key = "adv-deep-doze",
+                label = stringResource(R.string.setup_adv_deep_doze),
+                hint = stringResource(R.string.setup_adv_deep_doze_hint),
+                checked = deepSystemDoze,
+            ) { on ->
+                deepSystemDoze = on
+                SessionPrefs.setDeepSystemDoze(ctx, on)
+            }
+            ToggleRow(
+                host = host,
+                key = "adv-freeze-bloat",
+                label = stringResource(R.string.setup_adv_freeze_bloat),
+                hint = stringResource(R.string.setup_adv_freeze_bloat_hint),
+                checked = freezeBloatware,
+            ) { on ->
+                freezeBloatware = on
+                SessionPrefs.setFreezeBloatware(ctx, on)
+            }
+            ToggleRow(
+                host = host,
+                key = "adv-freeze-user-apps",
+                label = stringResource(R.string.setup_adv_freeze_user_apps),
+                hint = stringResource(R.string.setup_adv_freeze_user_apps_hint),
+                checked = freezeUserApps,
+            ) { on ->
+                freezeUserApps = on
+                SessionPrefs.setFreezeUserApps(ctx, on)
+            }
+        }
+    }
+
+    val telemetryGroup: @Composable () -> Unit = {
+        SettingsGroup(stringResource(R.string.setup_adv_group_telemetry)) {
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                val active = com.droiddeck.launcher.core.privileged.GameModeEngine.isActive()
+                val aggressive = com.droiddeck.launcher.core.privileged.GameModeEngine.isAggressiveActive()
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Active Profile", fontSize = 12.sp, color = colors.onSurfaceVariant)
+                    Text(
+                        if (active) (if (aggressive) "🔥 TURBO (Aggressive)" else "❄️ COOL (Load Reducer)") else "⚪ STANDBY (Engages with game)",
+                        fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                        color = if (active) (if (aggressive) colors.tertiary else pal.good) else colors.onSurfaceVariant,
+                    )
+                }
+
+                liveMetrics.forEach { (label, value) ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(label, fontSize = 12.sp, color = colors.onSurfaceVariant)
+                        Text(value, fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = colors.onBackground, maxLines = 1)
+                    }
+                }
+
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Affinity Target", fontSize = 12.sp, color = colors.onSurfaceVariant)
+                    Text(
+                        if (aggressive) "Cores 2-7 (0xfc - All Perf + Prime)" else "Cores 2-6 (0x7c - 5x A720 Perf, X4 Off)",
+                        fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = colors.onBackground,
+                    )
+                }
+            }
+        }
+    }
+
+    val testGroup: @Composable () -> Unit = {
+        SettingsGroup(stringResource(R.string.setup_adv_group_test)) {
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    stringResource(R.string.setup_adv_test_desc),
+                    fontSize = 12.sp,
+                    color = colors.onSurfaceVariant,
+                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                verifying = true
+                                val r = withContext(Dispatchers.IO) { com.droiddeck.launcher.core.privileged.GameModeEngine.testApplyNow(ctx) }
+                                verificationReport = r
+                                liveMetrics = withContext(Dispatchers.IO) {
+                                    com.droiddeck.launcher.core.privileged.GameModeEngine.runLiveVerification(ctx) +
+                                        com.droiddeck.launcher.core.privileged.AppFreezerEngine.runDiagnostic(ctx) +
+                                        com.droiddeck.launcher.core.privileged.DynamicAdaptiveGovernor.getDiagnosticReport(ctx)
+                                }
+                                verifying = false
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        enabled = privStatus.isActive && !verifying,
+                        shape = RoundedCornerShape(8.dp),
+                    ) {
+                        Text(if (verifying) stringResource(R.string.setup_adv_test_busy) else stringResource(R.string.setup_adv_test_apply), fontSize = 12.sp)
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            scope.launch {
+                                verifying = true
+                                val r = withContext(Dispatchers.IO) { com.droiddeck.launcher.core.privileged.GameModeEngine.testRestoreNow(ctx) }
+                                verificationReport = r
+                                liveMetrics = withContext(Dispatchers.IO) {
+                                    com.droiddeck.launcher.core.privileged.GameModeEngine.runLiveVerification(ctx) +
+                                        com.droiddeck.launcher.core.privileged.AppFreezerEngine.runDiagnostic(ctx) +
+                                        com.droiddeck.launcher.core.privileged.DynamicAdaptiveGovernor.getDiagnosticReport(ctx)
+                                }
+                                verifying = false
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        enabled = privStatus.isActive && !verifying,
+                        shape = RoundedCornerShape(8.dp),
+                    ) {
+                        Text(stringResource(R.string.setup_adv_test_restore), fontSize = 12.sp)
+                    }
+                }
+
+                if (!verificationReport.isNullOrEmpty()) {
+                    Box(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                            .background(colors.surfaceVariant.copy(alpha = 0.6f)).border(1.dp, pal.line, RoundedCornerShape(8.dp)).padding(10.dp),
+                    ) {
+                        Text(
+                            verificationReport.orEmpty(),
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace,
+                            color = colors.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    val shortcutsGroup: @Composable () -> Unit = {
+        SettingsGroup(stringResource(R.string.setup_adv_group_shortcuts)) {
+            ActionRow(
+                stringResource(R.string.setup_adv_debug_monitor),
+                stringResource(R.string.setup_adv_debug_monitor_hint),
+                stringResource(R.string.setup_adv_open_monitor),
+                onClick = { onSelect("debug-monitor") },
+            )
+            ActionRow(
+                stringResource(R.string.setup_adv_privileged_settings),
+                stringResource(R.string.setup_adv_privileged_settings_hint),
+                stringResource(R.string.setup_adv_configure),
+                onClick = { onSelect("privileged") },
+            )
+        }
+    }
+
+    if (wide) {
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.Top) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                privilegedCard()
+                gameModeGroup()
+                freezerGroup()
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                telemetryGroup()
+                testGroup()
+                shortcutsGroup()
+            }
+        }
+    } else {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            privilegedCard()
+            gameModeGroup()
+            freezerGroup()
+            telemetryGroup()
+            testGroup()
+            shortcutsGroup()
         }
     }
 }
