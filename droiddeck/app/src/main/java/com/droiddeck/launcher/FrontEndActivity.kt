@@ -748,6 +748,10 @@ class FrontEndActivity : ComponentActivity() {
         gameSyncFolder = GameFileSync.folder(this)
         displayManager = getSystemService(DISPLAY_SERVICE) as DisplayManager
         refreshPhantomStatus()
+        Thread {
+            com.droiddeck.launcher.core.privileged.PrivilegedBridge.refresh()
+            com.droiddeck.launcher.core.privileged.PrivilegedBridge.tryAutoStart(applicationContext)
+        }.start()
         theme = SessionPrefs.theme(this)
         frameGenLabel = getString(R.string.frame_gen_off)
         appScale = com.droiddeck.launcher.core.AppUiPrefs.scale(this)
@@ -1311,6 +1315,7 @@ class FrontEndActivity : ComponentActivity() {
             returning = ReturningFlood(c, com.droiddeck.launcher.ui.LaunchOrigin.takeReturn())
         }
         refreshPhantomStatus()
+        Thread { com.droiddeck.launcher.core.privileged.PrivilegedBridge.refresh() }.start()
         syncLossless()
         updates.onResume()
         drivers.checkOnOpen()

@@ -266,12 +266,37 @@ private fun DaemonActiveCard(status: PrivilegedStatus) {
 private fun DaemonActivationCard(ctx: Context) {
     val colors = MaterialTheme.colorScheme
     val cmd = PrivilegedBridge.getStarterAdbCommand(ctx)
+    val scope = rememberCoroutineScope()
+    var startingAdb by remember { mutableStateOf(false) }
+
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(colors.surface)
             .border(1.dp, colors.outlineVariant, RoundedCornerShape(10.dp)).padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text("Run once via Wireless ADB or USB ADB:", fontSize = 13.sp, color = colors.onSurfaceVariant)
+        Text("Option 1 — Wireless ADB One-Tap Start (Like Shizuku):", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
+        Text("Starts the daemon directly on the phone using Wireless Debugging — no PC or cable required:", fontSize = 12.sp, color = colors.onSurfaceVariant)
+        
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            PrimaryButton(if (startingAdb) "Starting..." else "Start via Wireless ADB", compact = true, enabled = !startingAdb) {
+                scope.launch {
+                    startingAdb = true
+                    val ok = withContext(Dispatchers.IO) {
+                        com.droiddeck.launcher.core.WirelessAdbFix.startPrivilegedDaemonWithSavedPairing(ctx)
+                    }
+                    if (ok) {
+                        withContext(Dispatchers.IO) { PrivilegedBridge.refresh() }
+                        Toast.makeText(ctx, "Privileged Daemon started successfully!", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(ctx, "Wireless Debugging not paired yet. Enable Wireless Debugging in Developer Options.", Toast.LENGTH_LONG).show()
+                    }
+                    startingAdb = false
+                }
+            }
+        }
+
+        Spacer(Modifier.height(4.dp))
+        Text("Option 2 — Manual Command via ADB Shell:", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
         Box(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(colors.surfaceVariant).padding(10.dp),
         ) {
@@ -286,10 +311,6 @@ private fun DaemonActivationCard(ctx: Context) {
                 .setPrimaryClip(ClipData.newPlainText("DroidDeck Daemon Command", cmd))
             Toast.makeText(ctx, "Command copied — paste in ADB shell", Toast.LENGTH_SHORT).show()
         }
-        Text(
-            "Tip: Enable Wireless Debugging on the phone, connect from a PC with  adb connect, then paste this command.",
-            fontSize = 11.sp, color = colors.onSurfaceVariant.copy(alpha = 0.8f),
-        )
     }
 }
 

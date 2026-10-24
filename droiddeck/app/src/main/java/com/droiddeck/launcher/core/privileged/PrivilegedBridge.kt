@@ -80,6 +80,18 @@ object PrivilegedBridge {
         return s
     }
 
+    fun tryAutoStart(context: Context) {
+        if (_status.value.isActive) return
+        Thread {
+            try {
+                if (com.droiddeck.launcher.core.WirelessAdbFix.startPrivilegedDaemonWithSavedPairing(context)) {
+                    Thread.sleep(600)
+                    refresh()
+                }
+            } catch (_: Exception) {}
+        }.start()
+    }
+
     fun execute(command: String): PrivilegedResult = when (_status.value.mode) {
         PrivilegedMode.EMBEDDED_DAEMON -> executeViaEmbeddedServer(command)
         PrivilegedMode.SHIZUKU_APP     -> executeViaShizuku(command)

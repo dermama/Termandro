@@ -203,4 +203,30 @@ object WirelessAdbFix {
             setChildProcessLimit(appContext, saved.host, discoveredPort, enabled)
         }
     }
+
+    fun startPrivilegedDaemonViaAdb(context: Context, host: String, port: Int) {
+        loadOrCreateIdentity(context.applicationContext)
+        val starterCmd = com.droiddeck.launcher.core.privileged.PrivilegedBridge.getStarterAdbCommand(context)
+        Kadb.create(host, port).use { adb ->
+            adb.shell("device_config set_sync_disabled_for_tests persistent && device_config put activity_manager max_phantom_processes 2147483647 && settings put global settings_enable_monitor_phantom_procs false")
+            adb.shell("pm grant ${context.packageName} android.permission.WRITE_SECURE_SETTINGS 2>/dev/null || true")
+            adb.shell("pm grant ${context.packageName} android.permission.DUMP 2>/dev/null || true")
+            adb.shell("pm grant ${context.packageName} android.permission.PACKAGE_USAGE_STATS 2>/dev/null || true")
+            adb.shell("dumpsys deviceidle whitelist +${context.packageName} 2>/dev/null || true")
+            adb.shell("cmd appops set ${context.packageName} RUN_IN_BACKGROUND allow 2>/dev/null || true")
+            adb.shell(starterCmd)
+        }
+        saveConnection(context, host, port)
+    }
+
+    fun startPrivilegedDaemonWithSavedPairing(context: Context): Boolean {
+        val appContext = context.applicationContext
+        val saved = savedConnection(appContext)
+        val host = saved?.host ?: LOOPBACK
+        val port = saved?.port ?: localConnectPort(appContext) ?: return false
+        return runCatching {
+            startPrivilegedDaemonViaAdb(appContext, host, port)
+            true
+        }.getOrDefault(false)
+    }
 }
