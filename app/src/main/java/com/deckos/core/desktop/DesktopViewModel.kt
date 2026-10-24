@@ -189,6 +189,24 @@ class DesktopViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    /** Launch Steam Big Picture / Gamepad UI via Proton pack. */
+    fun launchSteam() {
+        launchGame(
+            execPath = "steam",
+            gameName = "Steam Native Client",
+            runtimeHint = "steam",
+        )
+    }
+
+    /** Launch a standalone PC game .exe via Proton. */
+    fun launchExe(exePath: String, name: String = "PC Game") {
+        launchGame(
+            execPath = exePath,
+            gameName = name,
+            runtimeHint = "proton",
+        )
+    }
+
     /** Request a graceful stop of the active game session. */
     fun stopGame() {
         viewModelScope.launch(Dispatchers.Main) {

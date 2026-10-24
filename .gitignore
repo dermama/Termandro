@@ -6,6 +6,7 @@ sources/*
 # Local state and logs
 STATE.md
 *.log
+.droiddeck_git_backup/
 
 # Android / Gradle
 .gradle/

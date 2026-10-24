@@ -88,7 +88,12 @@ fun DesktopScreen(
                         onDesktopReady()
                     },
                     gamePhase = gamePhase,
+                    onLaunchSteam = {
+                        viewModel.launchSteam()
+                        onDesktopReady()
+                    },
                     onLaunchGame = { viewModel.launchGame() },
+                    onOpenView = onDesktopReady,
                     onStopGame = { viewModel.stopGame() },
                 )
 
@@ -134,7 +139,12 @@ fun DesktopScreen(
                     // L-71/L-75: Game Mode panel
                     GameModePanel(
                         phase     = gamePhase,
-                        onLaunch  = { viewModel.launchGame() },
+                        onLaunchSteam = {
+                            viewModel.launchSteam()
+                            onDesktopReady()
+                        },
+                        onLaunchGame  = { viewModel.launchGame() },
+                        onOpenView = onDesktopReady,
                         onStop    = { viewModel.stopGame() },
                     )
                 }
@@ -172,7 +182,9 @@ private fun InstallPanel(state: DesktopUiState.Installing) {
 private fun IdlePanel(
     onLaunch: () -> Unit,
     gamePhase: GamePhase,
+    onLaunchSteam: () -> Unit,
     onLaunchGame: () -> Unit,
+    onOpenView: () -> Unit,
     onStopGame: () -> Unit,
 ) {
     Text(
@@ -210,7 +222,9 @@ private fun IdlePanel(
 
     GameModePanel(
         phase = gamePhase,
-        onLaunch = onLaunchGame,
+        onLaunchSteam = onLaunchSteam,
+        onLaunchGame = onLaunchGame,
+        onOpenView = onOpenView,
         onStop = onStopGame,
     )
 }
@@ -260,7 +274,9 @@ private fun FailPanel(state: DesktopUiState.Failed, onRetry: () -> Unit) {
 @Composable
 private fun GameModePanel(
     phase: GamePhase,
-    onLaunch: () -> Unit,
+    onLaunchSteam: () -> Unit,
+    onLaunchGame: () -> Unit,
+    onOpenView: () -> Unit,
     onStop: () -> Unit,
 ) {
     val isActive = phase != GamePhase.IDLE && phase != GamePhase.FAILED
@@ -303,7 +319,7 @@ private fun GameModePanel(
                         .background(dotColor, CircleShape)
                 )
                 Text(
-                    text = "Game Mode",
+                    text = "Game Mode (Proton / Turnip KGSL)",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -325,16 +341,29 @@ private fun GameModePanel(
 
             if (!isActive) {
                 Button(
-                    onClick = onLaunch,
+                    onClick = onLaunchSteam,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF1A2A1A),
-                        contentColor = DeckCyan,
+                        containerColor = Color(0xFF1B2838),
+                        contentColor = Color(0xFF66C0F4),
                     ),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(
-                        text = "🎮 Launch Game",
+                        text = "🎮 Launch Steam (Valve Big Picture)",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = onLaunchGame,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = DeckCyan),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = "▶️ Run Graphics Demo",
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -342,6 +371,22 @@ private fun GameModePanel(
             }
 
             if (phase == GamePhase.RUNNING) {
+                Button(
+                    onClick = onOpenView,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = DeckCyan,
+                        contentColor = DeckBackground,
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = "🖥️ Open Game View (X11)",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+
                 OutlinedButton(
                     onClick = onStop,
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF4B4B)),
