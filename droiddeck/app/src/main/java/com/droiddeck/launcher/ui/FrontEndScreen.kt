@@ -433,9 +433,13 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     remember(density) { Hops.density = density; true }
     BackHandler(
         enabled = !processSettingsPageVisible && (s.pageKey == null || page == null) &&
-            (selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:") || selected == "store"),
+            (selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:") || selected == "store" || selected == "privileged" || selected == "debug-monitor"),
     ) {
-        selected = if (selected.startsWith("rom:")) "emu:" + selected.removePrefix("rom:").substringBefore(':') else "desktop"
+        selected = when {
+            selected.startsWith("rom:") -> "emu:" + selected.removePrefix("rom:").substringBefore(':')
+            selected == "privileged" || selected == "debug-monitor" -> "setup"
+            else -> "desktop"
+        }
     }
     LaunchedEffect(s.isHomeApp) { if (!s.isHomeApp && selected == "android-apps") selected = "steam" }
     LaunchedEffect(s.steamGames.isEmpty()) {
@@ -619,7 +623,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     val hasBackTarget = (s.pageKey != null && page != null) ||
         (s.pageKey == null && Hops.origin?.page == selected) ||
         ((s.pageKey == null || page == null) &&
-            (selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:") || selected == "store"))
+            (selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:") || selected == "store" || selected == "privileged" || selected == "debug-monitor"))
     BackHandler(enabled = !processSettingsPageVisible && !hasBackTarget) {
         if (inputModeManager.inputMode != InputMode.Keyboard) inputModeManager.requestInputMode(InputMode.Keyboard)
         runCatching { frontFocus.railFor(railSelection).requestFocus() }

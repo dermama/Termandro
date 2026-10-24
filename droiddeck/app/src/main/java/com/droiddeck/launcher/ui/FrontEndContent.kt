@@ -233,8 +233,16 @@ private fun Content(
     val padV = if (narrow) 12.dp else 18.dp
     if (selected == "setup") {
         Column(modifier = modifier.padding(horizontal = padH, vertical = padV)) {
-            SetupPanel(s, a, onOpenDeveloperOptions, onRequestWirelessAdb)
+            SetupPanel(s, a, onOpenDeveloperOptions, onRequestWirelessAdb, onSelect = onSelect)
         }
+        return
+    }
+    if (selected == "privileged") {
+        PrivilegedEnginePage(onBack = { onSelect("setup") })
+        return
+    }
+    if (selected == "debug-monitor") {
+        DebugMonitorPanel(onBack = { onSelect("setup") })
         return
     }
     if (selected == "updates") {

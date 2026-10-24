@@ -50,6 +50,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,6 +59,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.droiddeck.launcher.core.privileged.PrivilegedBridge
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
@@ -139,6 +141,7 @@ internal fun SetupPanel(
     a: FrontEndActions,
     onOpenDeveloperOptions: () -> Unit,
     onRequestWirelessAdb: (Boolean) -> Unit,
+    onSelect: (String) -> Unit = {},
 ) {
     val host = rememberMenuHost()
     val ctx = LocalContext.current
@@ -335,6 +338,18 @@ internal fun SetupPanel(
                             }
                         }
                         SettingsGroup(stringResource(R.string.setup_runtime)) { runtimeCheck(false) }
+                        val privStatus by PrivilegedBridge.statusFlow.collectAsState()
+                        SettingsGroup("Privileged Engine (ADB / Shizuku)") {
+                            CheckRow(
+                                if (privStatus.isActive) CheckState.OK else CheckState.WARN,
+                                "Privileged Mode: ${privStatus.shortLabel}",
+                                if (privStatus.isActive) "Active (${privStatus.modeLabel}) · Full background protection & unlimited child processes"
+                                else "Inactive · Tap Manage to activate embedded daemon or connect Shizuku",
+                                divider = false,
+                            ) {
+                                SecondaryButton("Manage", compact = true) { onSelect("privileged") }
+                            }
+                        }
                     }
                     1 -> {
                         val controller = s.controller
@@ -448,6 +463,10 @@ internal fun SetupPanel(
                     }
                     STORAGE_TAB -> StoragePanel(s, a)
                     4 -> {
+                        SettingsGroup("System Diagnostics & Monitoring") {
+                            ActionRow("Live Debug Monitor", "View real-time memory, processes, system metrics, and run commands", "Open Monitor", onClick = { onSelect("debug-monitor") })
+                            ActionRow("Privileged Engine Settings", "Configure Embedded ADB Daemon, Shizuku integration, and ADB commands", "Configure", onClick = { onSelect("privileged") })
+                        }
                         SettingsGroup(stringResource(R.string.setup_tab_diagnostics)) {
                             ToggleRow(host, "logs", stringResource(R.string.setup_logs), stringResource(R.string.setup_logs_hint), s.logsEnabled) { a.onLogs() }
                             ToggleRow(host, "vacdiag", stringResource(R.string.setup_vac_diag), stringResource(R.string.setup_vac_diag_hint), s.vacDiagnostics) { a.onVacDiagnostics() }
