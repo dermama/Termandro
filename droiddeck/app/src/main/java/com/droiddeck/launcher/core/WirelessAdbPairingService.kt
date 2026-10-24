@@ -133,7 +133,7 @@ class WirelessAdbPairingService : Service() {
                 val connectPort = WirelessAdbFix.localConnectPort(this)
                     ?: error(getString(R.string.adbpair_port_not_found))
                 main.post { show(Stage.Working(getString(R.string.adbpair_applying))) }
-                WirelessAdbFix.setChildProcessLimit(this, WirelessAdbFix.LOOPBACK, connectPort, false)
+                WirelessAdbFix.startPrivilegedDaemonViaAdb(this, WirelessAdbFix.LOOPBACK, connectPort)
             }
             main.post {
                 working = false

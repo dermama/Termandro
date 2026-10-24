@@ -219,6 +219,25 @@ object WirelessAdbFix {
         saveConnection(context, host, port)
     }
 
+    fun isPaired(context: Context): Boolean {
+        val directory = context.applicationContext.noBackupFilesDir
+        val cert = File(directory, CERT_FILE)
+        val key = File(directory, KEY_FILE)
+        val host = File(directory, HOST_FILE).takeIf(File::isFile)?.readText()?.trim()
+        return cert.isFile && key.isFile && !host.isNullOrEmpty()
+    }
+
+    suspend fun pairAndStartPrivilegedDaemon(context: Context, port: Int, pairingCode: String): Result<Unit> =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                pair(context, LOOPBACK, port, pairingCode)
+                kotlinx.coroutines.delay(800)
+                val connectPort = localConnectPort(context)
+                    ?: error("Connect port not discovered. Ensure Wireless Debugging is active.")
+                startPrivilegedDaemonViaAdb(context, LOOPBACK, connectPort)
+            }
+        }
+
     fun startPrivilegedDaemonWithSavedPairing(context: Context): Boolean {
         val appContext = context.applicationContext
         val saved = savedConnection(appContext)

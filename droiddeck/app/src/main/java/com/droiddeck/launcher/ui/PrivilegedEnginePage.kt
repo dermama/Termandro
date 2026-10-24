@@ -307,23 +307,103 @@ private fun openAboutPhone(ctx: Context) {
 }
 
 @Composable
+private fun PairingCodeDialog(
+    onDismiss: () -> Unit,
+    onPair: (port: Int, code: String) -> Unit,
+) {
+    var portText by remember { mutableStateOf("") }
+    var codeText by remember { mutableStateOf("") }
+    val colors = MaterialTheme.colorScheme
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Wireless ADB Pairing", fontWeight = FontWeight.Bold, color = colors.onSurface) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "In Developer options -> Wireless debugging -> 'Pair device with pairing code', note the 6-digit code and pairing port:",
+                    fontSize = 12.sp,
+                    color = colors.onSurfaceVariant,
+                )
+                OutlinedTextField(
+                    value = portText,
+                    onValueChange = { portText = it.filter(Char::isDigit) },
+                    label = { Text("Pairing Port (e.g. 39123)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = codeText,
+                    onValueChange = { if (it.length <= 6) codeText = it.filter(Char::isDigit) },
+                    label = { Text("6-Digit Pairing Code") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val port = portText.toIntOrNull()
+                    if (port != null && codeText.length == 6) {
+                        onPair(port, codeText)
+                    }
+                },
+                enabled = portText.toIntOrNull() != null && codeText.length == 6,
+            ) {
+                Text("Pair & Start")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+    )
+}
+
+@Composable
 private fun DaemonActivationCard(ctx: Context) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val cmd = PrivilegedBridge.getStarterAdbCommand(ctx)
     val scope = rememberCoroutineScope()
     var startingAdb by remember { mutableStateOf(false) }
+    var showPairDialog by remember { mutableStateOf(false) }
 
     val devOptionsOn = remember { mutableStateOf(isDevOptionsOn(ctx)) }
     val wirelessAdbOn = remember { mutableStateOf(isWirelessAdbOn(ctx)) }
+    val isPaired = remember { mutableStateOf(com.droiddeck.launcher.core.WirelessAdbFix.isPaired(ctx)) }
 
     // Re-check settings state periodically
     LaunchedEffect(Unit) {
         while (isActive) {
             devOptionsOn.value = isDevOptionsOn(ctx)
             wirelessAdbOn.value = isWirelessAdbOn(ctx)
+            isPaired.value = com.droiddeck.launcher.core.WirelessAdbFix.isPaired(ctx)
             delay(1_500)
         }
+    }
+
+    if (showPairDialog) {
+        PairingCodeDialog(
+            onDismiss = { showPairDialog = false },
+            onPair = { port, code ->
+                showPairDialog = false
+                scope.launch {
+                    startingAdb = true
+                    val result = com.droiddeck.launcher.core.WirelessAdbFix.pairAndStartPrivilegedDaemon(ctx, port, code)
+                    if (result.isSuccess) {
+                        withContext(Dispatchers.IO) { PrivilegedBridge.refresh() }
+                        Toast.makeText(ctx, "Paired & Privileged Daemon Started!", Toast.LENGTH_SHORT).show()
+                    } else {
+                        val err = result.exceptionOrNull()?.localizedMessage ?: "Pairing failed"
+                        Toast.makeText(ctx, "Error: $err", Toast.LENGTH_LONG).show()
+                    }
+                    startingAdb = false
+                }
+            }
+        )
     }
 
     Column(
@@ -340,8 +420,11 @@ private fun DaemonActivationCard(ctx: Context) {
                     .border(1.dp, colors.error.copy(alpha = 0.35f), RoundedCornerShape(8.dp)).padding(10.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Text("⚠️ Step 1: Enable Developer Options", fontWeight = FontWeight.Bold, color = colors.error, fontSize = 13.sp)
-                Text("Developer options are not enabled yet. Tap below to go directly to About Phone -> Software information, then tap 'Build number' 7 times.", fontSize = 12.sp, color = colors.onBackground)
+                Text("⚠️ الخطوة 1: تفعيل خيارات المطور (Developer Options)", fontWeight = FontWeight.Bold, color = colors.error, fontSize = 13.sp)
+                Text(
+                    "خيارات المطور غير مفعلة على جهازك. اضغط أدناه للانتقال إلى 'حول الهاتف' (About Phone) -> 'معلومات البرنامج' (Software information) -> واضغط 7 مرات متتالية على 'رقم الإصدار' (Build number).",
+                    fontSize = 12.sp, color = colors.onBackground
+                )
                 PrimaryButton("Open About Phone (Step 1)", compact = true) { openAboutPhone(ctx) }
             }
         } else if (!wirelessAdbOn.value) {
@@ -351,20 +434,54 @@ private fun DaemonActivationCard(ctx: Context) {
                     .border(1.dp, colors.tertiary.copy(alpha = 0.40f), RoundedCornerShape(8.dp)).padding(10.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Text("⚠️ Step 2: Turn ON Wireless Debugging", fontWeight = FontWeight.Bold, color = colors.onBackground, fontSize = 13.sp)
-                Text("Developer options are enabled! Now tap below to open Developer options and switch ON 'Wireless debugging'.", fontSize = 12.sp, color = colors.onSurfaceVariant)
+                Text("⚠️ الخطوة 2: تشغيل تصحيح الأخطاء اللاسلكي (Wireless Debugging)", fontWeight = FontWeight.Bold, color = colors.onBackground, fontSize = 13.sp)
+                Text(
+                    "خيارات المطور مفعلة! اضغط أدناه للانتقال مباشرة إلى 'خيارات المطور' وقم بتفعيل خيار 'تصحيح الأخطاء اللاسلكي' (Wireless debugging) ثم اختر 'سماح دائماً'.",
+                    fontSize = 12.sp, color = colors.onSurfaceVariant
+                )
                 PrimaryButton("Open Developer Options & Turn ON", compact = true) { openDevOptions(ctx) }
             }
+        } else if (!isPaired.value) {
+            // ── Step 3: Pairing Needed ──
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(colors.primary.copy(alpha = 0.10f))
+                    .border(1.dp, colors.primary.copy(alpha = 0.35f), RoundedCornerShape(8.dp)).padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text("🔗 الخطوة 3: الاقتران لأول مرة (Pairing)", fontWeight = FontWeight.Bold, color = colors.primary, fontSize = 13.sp)
+                Text(
+                    "تصحيح اللاسلكي قيد التشغيل! نحتاج للاقتران لمرة واحدة فقط لحفظ مفاتيح الأمان:\n" +
+                    "1. افتح خيارات المطور واضغط على اسم 'تصحيح الأخطاء اللاسلكي'.\n" +
+                    "2. اضغط 'إقران الجهاز باستخدام رمز إقران' (Pair with pairing code).\n" +
+                    "3. أدخل الرمز المكون من 6 أرقام والمنفذ أدناه، أو استخدم خدمة الإشعار السريع:",
+                    fontSize = 12.sp, color = colors.onSurfaceVariant
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    Box(Modifier.weight(1f)) {
+                        PrimaryButton("Enter Pairing Code", compact = true) { showPairDialog = true }
+                    }
+                    Box(Modifier.weight(1f)) {
+                        SecondaryButton("Pair via Notification", compact = true) {
+                            com.droiddeck.launcher.core.WirelessAdbPairingService.start(ctx)
+                            Toast.makeText(ctx, "Pull down notification shade to enter code", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+                SecondaryButton("Open Wireless Debugging Screen", compact = true) { openDevOptions(ctx) }
+            }
         } else {
-            // ── Step 3: Ready to Start ──
+            // ── Step 4: Ready to Start ──
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(pal.good.copy(alpha = 0.10f))
                     .border(1.dp, pal.good.copy(alpha = 0.35f), RoundedCornerShape(8.dp)).padding(10.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Text("✅ Wireless Debugging is ON & Ready", fontWeight = FontWeight.Bold, color = pal.good, fontSize = 13.sp)
-                Text("Tap below to activate full system privileges with one touch:", fontSize = 12.sp, color = colors.onSurfaceVariant)
-                PrimaryButton(if (startingAdb) "Activating..." else "Start via Wireless ADB (One-Tap)", compact = true, enabled = !startingAdb) {
+                Text("✅ جاهز للتشغيل الفوري (Ready to Start)", fontWeight = FontWeight.Bold, color = pal.good, fontSize = 13.sp)
+                Text(
+                    "الهاتف مقترن وتصحيح اللاسلكي مفعل! اضغط الزر أدناه لتشغيل خادم الحماية وإلغاء قيود Phantom Process Killer فوراً بلمسة واحدة:",
+                    fontSize = 12.sp, color = colors.onSurfaceVariant
+                )
+                PrimaryButton(if (startingAdb) "Activating..." else "Start Privileged Engine (One-Tap)", compact = true, enabled = !startingAdb) {
                     scope.launch {
                         startingAdb = true
                         val ok = withContext(Dispatchers.IO) {
@@ -374,7 +491,7 @@ private fun DaemonActivationCard(ctx: Context) {
                             withContext(Dispatchers.IO) { PrivilegedBridge.refresh() }
                             Toast.makeText(ctx, "Privileged Daemon started successfully!", Toast.LENGTH_SHORT).show()
                         } else {
-                            Toast.makeText(ctx, "Pair Wireless Debugging once in Developer Options.", Toast.LENGTH_LONG).show()
+                            Toast.makeText(ctx, "Could not connect. Ensure Wireless Debugging is enabled.", Toast.LENGTH_LONG).show()
                         }
                         startingAdb = false
                     }
@@ -387,10 +504,10 @@ private fun DaemonActivationCard(ctx: Context) {
             Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(colors.surfaceVariant.copy(alpha = 0.40f)).padding(10.dp),
             verticalArrangement = Arrangement.spacedBy(3.dp),
         ) {
-            Text("ℹ️ What happens when the phone restarts?", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = colors.onBackground)
+            Text("ℹ️ ماذا يحدث عند إطفاء أو إعادة تشغيل الهاتف؟ (Phone Reboot)", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = colors.onBackground)
             Text(
-                "When you reboot your phone, Android resets running background services. However, your pairing remains saved! " +
-                "After restarting, simply ensure Wireless Debugging is on and open DroidDeck — it automatically reconnects and restores all privileges.",
+                "عند إعادة تشغيل الهاتف، يوقف أندرويد عمليات الخلفية وصلاحيات ADB مؤقتاً لحماية النظام.\n" +
+                "لكن ملفات الاقتران تظل محفوظة بشكل دائم في الهاتف! بعد إعادة التشغيل، كل ما عليك هو تفعيل 'التصحيح اللاسلكي' وفتح DroidDeck والضغط على 'تشغيل' — سيعمل في ثوانٍ دون الحاجة لكمبيوتر أو كابل إطلاقاً.",
                 fontSize = 11.sp, color = colors.onSurfaceVariant,
             )
         }
