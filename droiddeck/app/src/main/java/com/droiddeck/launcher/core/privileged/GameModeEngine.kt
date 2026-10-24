@@ -141,7 +141,7 @@ object GameModeEngine {
         Thread({
             try {
                 Thread.sleep(1500)
-                if (applied && (sessionGen == 0 || activeGen.get() == sessionGen)) {
+                if (applied && activeGen.get() > 0 && (sessionGen == 0 || activeGen.get() == sessionGen)) {
                     val followUpScript = """
                         for tid in /proc/$pid/task/*; do
                             [ -d "${'$'}tid" ] && taskset -p $mask ${'$'}{tid##*/} 2>/dev/null || true

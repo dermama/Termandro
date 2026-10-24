@@ -207,7 +207,7 @@ object AppFreezerEngine {
     @Synchronized
     fun restore(context: Context, sessionGen: Int = 0) {
         activeGen.set(0) // Invalidate any in-flight apply
-        if (!applied && !hasMarker(context)) return
+        if (!applied && !dozeForced && !hasMarker(context)) return
         applied = false
         Log.i(TAG, "app freezer: restoring suspended packages and system doze (gen=$sessionGen)...")
 

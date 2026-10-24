@@ -62,24 +62,29 @@ object DynamicAdaptiveGovernor {
         activePid = pid
         running = true
         currentTier = AdaptiveTier.BALANCED_COOL
-        lastTransitionTime = System.currentTimeMillis()
+        lastTransitionTime = 0L
 
-        val pm = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+        val appContext = context.applicationContext
+        val pm = appContext.getSystemService(Context.POWER_SERVICE) as? PowerManager
 
         // 1. Zero-polling hardware thermal listener (Android 10+)
         if (Build.VERSION.SDK_INT >= 29 && pm != null) {
             try {
                 val listener = PowerManager.OnThermalStatusChangedListener { status ->
                     if (running && activeSessionGen == sessionGen) {
-                        evaluateState(context, status, force = false)
+                        evaluateState(appContext, status, force = false)
                     }
                 }
-                pm.addThermalStatusListener(ContextCompat.getMainExecutor(context), listener)
+                pm.addThermalStatusListener(ContextCompat.getMainExecutor(appContext), listener)
                 thermalListener = listener
             } catch (t: Throwable) {
                 Log.w(TAG, "could not register thermal listener", t)
             }
         }
+
+        // Initial instant evaluation based on current temperature at launch
+        val initialThermal = if (Build.VERSION.SDK_INT >= 29 && pm != null) pm.currentThermalStatus else 0
+        evaluateState(appContext, initialThermal, force = true)
 
         // 2. Ultra-lightweight 15-second heartbeat for battery temp & headroom
         monitorThread = Thread({
@@ -89,7 +94,7 @@ object DynamicAdaptiveGovernor {
                     Thread.sleep(15000)
                     if (!running || activeSessionGen != sessionGen) break
                     val currentThermal = if (Build.VERSION.SDK_INT >= 29 && pm != null) pm.currentThermalStatus else 0
-                    evaluateState(context, currentThermal, force = false)
+                    evaluateState(appContext, currentThermal, force = false)
                 } catch (_: InterruptedException) {
                     break
                 } catch (t: Throwable) {
@@ -110,7 +115,7 @@ object DynamicAdaptiveGovernor {
         monitorThread?.interrupt()
         monitorThread = null
 
-        val pm = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+        val pm = context.applicationContext.getSystemService(Context.POWER_SERVICE) as? PowerManager
         if (Build.VERSION.SDK_INT >= 29 && pm != null && thermalListener != null) {
             try {
                 pm.removeThermalStatusListener(thermalListener as PowerManager.OnThermalStatusChangedListener)
@@ -128,8 +133,8 @@ object DynamicAdaptiveGovernor {
         if (!running) return
 
         val now = System.currentTimeMillis()
-        // Minimum hold time: 30 seconds between state transitions to avoid flapping
-        if (!force && now - lastTransitionTime < 30000) return
+        // Minimum hold time: 30 seconds between state transitions to avoid flapping (skipped on initial force evaluation)
+        if (!force && lastTransitionTime != 0L && now - lastTransitionTime < 30000) return
 
         val batteryTemp = getBatteryTemperature(context)
         val headroom = getThermalHeadroom(context)
@@ -170,11 +175,11 @@ object DynamicAdaptiveGovernor {
             currentTier = nextTier
             lastTransitionTime = now
             Log.i(TAG, "governor transition: $prev -> $nextTier [temp=${batteryTemp}°C, thermal=$thermalStatus, headroom=$headroom]")
-            applyTierAction(context, nextTier, activePid)
+            applyTierAction(context, nextTier, activePid, activeSessionGen)
         }
     }
 
-    private fun applyTierAction(context: Context, tier: AdaptiveTier, pid: Int) {
+    private fun applyTierAction(context: Context, tier: AdaptiveTier, pid: Int, sessionGen: Int) {
         val script = buildString {
             when (tier) {
                 AdaptiveTier.COOLING_RELIEF -> {
@@ -206,6 +211,7 @@ object DynamicAdaptiveGovernor {
 
         Thread({
             try {
+                if (!running || (activeSessionGen != 0 && sessionGen != activeSessionGen)) return@Thread
                 PrivilegedBridge.execute(script)
             } catch (t: Throwable) {
                 Log.w(TAG, "applyTierAction error: $script", t)
