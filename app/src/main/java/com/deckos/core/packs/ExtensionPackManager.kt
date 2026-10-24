@@ -217,22 +217,25 @@ class ExtensionPackManager(private val context: Context) {
         onProgress: (Float) -> Unit,
     ): Boolean {
         val prefix = File(context.filesDir, "usr")
-        val tarBin = File(prefix, "bin/tar").takeIf { it.exists() }
-            ?: return extractFallback(archiveFile, destDir, prefix)
+        val tarBin = File(prefix, "bin/tar")
+        val shBin  = File("/system/bin/sh")
+
+        if (!tarBin.exists()) return extractFallback(archiveFile, destDir, prefix)
 
         return try {
-            val args = mutableListOf(
-                tarBin.absolutePath,
-                "-xf", archiveFile.absolutePath,
-                "-C", destDir.absolutePath,
-                "--no-same-owner",       // avoid permission issues on Android
-                "--delay-directory-restore",
+            val usrLib = "${prefix.absolutePath}/lib"
+            val usrBin = "${prefix.absolutePath}/bin"
+
+            // Wrap in sh -c so LD_LIBRARY_PATH is inherited by zstd subprocess spawned by tar
+            val cmd = listOf(
+                shBin.absolutePath, "-c",
+                "LD_LIBRARY_PATH=$usrLib PATH=$usrBin:/system/bin " +
+                    "${tarBin.absolutePath} -xf ${archiveFile.absolutePath} " +
+                    "-C ${destDir.absolutePath} --no-same-owner --delay-directory-restore 2>&1"
             )
 
-            val pb = ProcessBuilder(args).apply {
-                environment()["PATH"]            = "${prefix.absolutePath}/bin:/system/bin"
-                environment()["LD_LIBRARY_PATH"] = "${prefix.absolutePath}/lib"
-                environment()["TMPDIR"]          = context.cacheDir.absolutePath
+            val pb = ProcessBuilder(cmd).apply {
+                environment()["TMPDIR"] = context.cacheDir.absolutePath
                 redirectErrorStream(true)
             }
 

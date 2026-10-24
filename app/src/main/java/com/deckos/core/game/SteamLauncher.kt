@@ -2,6 +2,7 @@ package com.deckos.core.game
 
 import android.content.Context
 import android.util.Log
+import com.deckos.core.X11Server
 import com.deckos.core.packs.ExtensionPackCatalog
 import com.deckos.core.packs.ExtensionPackManager
 import java.io.File
@@ -9,16 +10,98 @@ import java.io.File
 private const val TAG = "SteamLauncher"
 
 /**
- * Launches Steam via Proton-GE inside the game pack rootfs.
+ * Launches Steam via the bundled DroidDeck runtime inside the game pack rootfs.
  *
- * Prerequisites:
- *  - Game Pack installed (steam_proton)
- *  - X11 display running
- *  - Termux usr/bin/proot or proot-distro available
+ * Architecture:
+ *  - Runtime: Arch Linux ARM rootfs with Mesa Turnip KGSL (Adreno Vulkan) & Gamescope 3.16
+ *  - Host Executor: Termux PRoot fork (opt/android-host/proot + loader)
+ *  - Session runner: /usr/local/bin/bannerlator-session steam
  */
 object SteamLauncher {
 
     data class LaunchResult(val success: Boolean, val pid: Int?, val message: String)
+
+    /**
+     * Build the PRoot execution command for running inside the Steam/Proton pack.
+     */
+    fun buildProotCommand(
+        context: Context,
+        guestArgs: List<String>,
+        packDir: File = ExtensionPackManager(context).getPackDir(ExtensionPackCatalog.STEAM_PROTON.id)
+    ): List<String> {
+        val prootBin = File(packDir, "opt/android-host/proot")
+
+        return buildList {
+            add(prootBin.absolutePath)
+            add("--kill-on-exit")
+            add("-0")
+            add("-r")
+            add(packDir.absolutePath)
+            add("-w")
+            add("/root")
+            add("-b")
+            add("/dev")
+            add("-b")
+            add("/proc")
+            add("-b")
+            add("/sys")
+            add("-b")
+            add("/dev/urandom:/dev/random")
+            add("-b")
+            add("/proc/self/fd:/dev/fd")
+            add("-b")
+            add("/proc/self/fd/0:/dev/stdin")
+            add("-b")
+            add("/proc/self/fd/1:/dev/stdout")
+            add("-b")
+            add("/proc/self/fd/2:/dev/stderr")
+            add("-b")
+            add("${context.cacheDir.absolutePath}:/tmp")
+
+            val kgsl = File("/dev/kgsl-3d0")
+            if (kgsl.exists()) {
+                add("-b")
+                add("/dev/kgsl-3d0")
+            }
+            val dri = File("/dev/dri")
+            if (dri.exists()) {
+                add("-b")
+                add("/dev/dri")
+            }
+            val sdcard = File("/sdcard")
+            if (sdcard.exists()) {
+                add("-b")
+                add("/sdcard")
+            }
+            addAll(guestArgs)
+        }
+    }
+
+    /**
+     * Setup environment variables required by proot and gamescope/turnip.
+     */
+    fun setupEnvironment(
+        context: Context,
+        env: MutableMap<String, String>,
+        display: String = X11Server.DISPLAY,
+        packDir: File = ExtensionPackManager(context).getPackDir(ExtensionPackCatalog.STEAM_PROTON.id)
+    ) {
+        val prootBin = File(packDir, "opt/android-host/proot")
+        val loaderBin = File(packDir, "opt/android-host/loader")
+
+        env["PROOT_TMP_DIR"] = context.cacheDir.absolutePath
+        env["PROOT_LOADER"] = loaderBin.absolutePath
+        env["LD_LIBRARY_PATH"] = prootBin.parentFile.absolutePath
+        env["PATH"] = "/usr/local/bin:/usr/bin:/bin:/system/bin"
+        env["DISPLAY"] = display
+        env["HOME"] = "/root"
+        env["USER"] = "root"
+        env["BL_WIDTH"] = "1280"
+        env["BL_HEIGHT"] = "720"
+        env["BL_FPS"] = "60"
+        env["BL_LOG"] = File(context.cacheDir, "steam-session.log").absolutePath
+        env["VK_ICD_FILENAMES"] = "/usr/share/vulkan/icd.d/freedreno_icd.json"
+    }
 
     /**
      * Attempt to start Steam. Returns immediately; process runs in background.
@@ -29,42 +112,26 @@ object SteamLauncher {
             return LaunchResult(false, null, "Game Pack not installed. Download it from Extension Packs.")
         }
 
-        val packDir   = manager.getPackDir(ExtensionPackCatalog.STEAM_PROTON.id)
-        val steamBin  = File(packDir, "usr/bin/steam")
-        val protonBin = File(packDir, "usr/bin/proton")
+        val packDir = manager.getPackDir(ExtensionPackCatalog.STEAM_PROTON.id)
+        val prootBin = File(packDir, "opt/android-host/proot")
+        val sessionScript = File(packDir, "usr/local/bin/bannerlator-session")
 
-        if (!steamBin.exists() && !protonBin.exists()) {
-            return LaunchResult(false, null, "Steam binary not found in game pack. Reinstall the pack.")
+        if (!prootBin.exists() || !sessionScript.exists()) {
+            return LaunchResult(false, null, "Game pack files missing. Reinstall the pack.")
         }
 
-        val prefix    = File(context.filesDir, "usr")
-        val prootBin  = File(prefix, "bin/proot")
-        val display   = System.getenv("DISPLAY") ?: ":1"
+        // Ensure X11 server is running
+        X11Server.ensureRunning(context)
 
         return try {
-            val cmd = buildList {
-                if (prootBin.exists()) {
-                    add(prootBin.absolutePath)
-                    add("--rootfs=${packDir.absolutePath}")
-                    add("--bind=/dev/kgsl-3d0:/dev/kgsl-3d0")    // Adreno Turnip
-                    add("--bind=/dev/dri:/dev/dri")
-                    add("--bind=/tmp:/tmp")
-                    add("/usr/bin/env")
-                } else {
-                    add("/system/bin/sh")
-                    add("-c")
-                }
-                add("DISPLAY=$display")
-                add("STEAM_RUNTIME=1")
-                add("PROTON_USE_WINED3D=0")
-                add("DXVK_ASYNC=1")
-                add(steamBin.absolutePath)
-            }
+            val cmd = buildProotCommand(
+                context = context,
+                guestArgs = listOf("/usr/local/bin/bannerlator-session", "steam"),
+                packDir = packDir
+            )
 
             val pb = ProcessBuilder(cmd).apply {
-                environment()["DISPLAY"] = display
-                environment()["PATH"] = "${prefix.absolutePath}/bin:/system/bin"
-                environment()["HOME"] = context.filesDir.absolutePath
+                setupEnvironment(context, environment(), X11Server.DISPLAY, packDir)
                 redirectErrorStream(true)
             }
             val process = pb.start()
@@ -74,8 +141,8 @@ object SteamLauncher {
                 f.getInt(process)
             }.getOrNull()
 
-            Log.i(TAG, "Steam launched, pid=$pid display=$display")
-            LaunchResult(true, pid, "Steam started on display $display")
+            Log.i(TAG, "Steam launched, pid=$pid display=${X11Server.DISPLAY}")
+            LaunchResult(true, pid, "Steam started on display ${X11Server.DISPLAY}")
         } catch (e: Exception) {
             Log.e(TAG, "Steam launch failed", e)
             LaunchResult(false, null, "Launch failed: ${e.message}")

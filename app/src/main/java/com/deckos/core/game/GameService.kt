@@ -402,12 +402,19 @@ class GameService : Service(), IGameSession {
         return try {
             val logFile = File(filesDir, "game.log")
             logFile.appendText("\n[DeckOSGame] Launching ${cfg.gameName} at ${System.currentTimeMillis()}\n")
+            val packDir = File(filesDir, "packs/steam_proton")
+            val isProot = cmd.firstOrNull()?.contains("proot") == true
+
             val pb = ProcessBuilder(cmd).apply {
                 environment().putAll(env)
-                environment()["DISPLAY"] = ":1"
+                environment()["DISPLAY"] = X11Server.DISPLAY
+                if (isProot && packDir.isDirectory) {
+                    SteamLauncher.setupEnvironment(applicationContext, environment(), X11Server.DISPLAY, packDir)
+                }
                 redirectErrorStream(true)
                 redirectOutput(ProcessBuilder.Redirect.appendTo(logFile))
-                directory(File(cfg.execPath).parentFile ?: filesDir)
+                val targetDir = File(cfg.execPath).parentFile?.takeIf { it.isDirectory } ?: filesDir
+                directory(targetDir)
             }
             val process = pb.start()
             activeProcess = process
@@ -455,43 +462,45 @@ class GameService : Service(), IGameSession {
 
     private fun buildLaunchCommand(cfg: GameConfig): List<String> {
         val prefix = File(filesDir, "usr").absolutePath
-        val execFile = File(cfg.execPath)
-
-        val packProton = File(filesDir, "game_packs/steam_proton/usr/local/bin/droiddeck-proton-run")
-        val packSteam = File(filesDir, "game_packs/steam_proton/usr/bin/steam")
-        val packFex = File(filesDir, "game_packs/steam_proton/usr/bin/FEXInterpreter")
-        val wineBin = File(filesDir, "game_packs/proton/bin/wine")
+        val packDir = File(filesDir, "packs/steam_proton")
+        val hasPack = packDir.isDirectory && File(packDir, "opt/android-host/proot").exists()
 
         return when {
+            cfg.runtimeHint.equals("steam", ignoreCase = true) || cfg.execPath.equals("steam", ignoreCase = true) -> {
+                if (hasPack) {
+                    SteamLauncher.buildProotCommand(
+                        context = this,
+                        guestArgs = listOf("/usr/local/bin/bannerlator-session", "steam"),
+                        packDir = packDir
+                    )
+                } else {
+                    listOf(cfg.execPath) + cfg.execArgs
+                }
+            }
+            cfg.runtimeHint.equals("proton", ignoreCase = true) || cfg.execPath.endsWith(".exe", ignoreCase = true) -> {
+                if (hasPack) {
+                    SteamLauncher.buildProotCommand(
+                        context = this,
+                        guestArgs = listOf("/usr/local/bin/bannerlator-session", "run", cfg.execPath) + cfg.execArgs,
+                        packDir = packDir
+                    )
+                } else {
+                    listOf(cfg.execPath) + cfg.execArgs
+                }
+            }
             cfg.runtimeHint.equals("fex", ignoreCase = true) -> {
+                val packFex = File(packDir, "usr/bin/FEXInterpreter")
                 when {
-                    packFex.exists() -> listOf(packFex.absolutePath, cfg.execPath) + cfg.execArgs
+                    hasPack && packFex.exists() -> {
+                        SteamLauncher.buildProotCommand(
+                            context = this,
+                            guestArgs = listOf(packFex.absolutePath, cfg.execPath) + cfg.execArgs,
+                            packDir = packDir
+                        )
+                    }
                     File("$prefix/bin/fex-emu").exists() -> listOf("$prefix/bin/fex-emu", cfg.execPath) + cfg.execArgs
                     else -> {
                         Log.w(TAG, "FEX not found — falling back to native exec")
-                        listOf(cfg.execPath) + cfg.execArgs
-                    }
-                }
-            }
-            cfg.runtimeHint.equals("proton", ignoreCase = true)
-                || cfg.runtimeHint.equals("steam", ignoreCase = true)
-                || cfg.execPath.endsWith(".exe", ignoreCase = true)
-                || cfg.execPath.equals("steam", ignoreCase = true) -> {
-                when {
-                    cfg.execPath.equals("steam", ignoreCase = true) && packSteam.exists() -> {
-                        listOf(packSteam.absolutePath) + cfg.execArgs
-                    }
-                    cfg.execPath.endsWith(".exe", ignoreCase = true) && packProton.exists() -> {
-                        listOf(packProton.absolutePath, cfg.execPath) + cfg.execArgs
-                    }
-                    packProton.exists() -> {
-                        listOf(packProton.absolutePath, cfg.execPath) + cfg.execArgs
-                    }
-                    wineBin.exists() -> {
-                        listOf(wineBin.absolutePath, cfg.execPath) + cfg.execArgs
-                    }
-                    else -> {
-                        Log.w(TAG, "Proton/Wine not found — falling back to native exec")
                         listOf(cfg.execPath) + cfg.execArgs
                     }
                 }
