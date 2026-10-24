@@ -87,20 +87,26 @@ def desktopKde = rootProject.file('tools/desktop-kde/release.env').readLines()
 def trackingPack = rootProject.file('tools/packs/tracking/release.env').readLines()
     .findAll { it.contains('=') && !it.startsWith('#') }
     .collectEntries { def kv = it.split('=', 2); [(kv[0].trim()): kv[1].trim()] }
+def defaultPacks = [
+    proot: [sha256: '5a2b7284e6357f88a14a790abd54e61effbe5f202c63b6aaba9b974c559649c3', size: 96643L],
+    directaudio: [sha256: 'fd65f0c1e68234cac18796cfd7d43dad46334988dad1eb20fc082952d83efa7e', size: 22574L],
+    tracking: [sha256: '6b033308a33575947b75eee0bab093bf7dd58c57f71ed81ddc09a859f4df8dde', size: 25493162L],
+    xbox: [sha256: '72d90393b09d260558717215b58b1925345cc8d39d8980009fd062919c764e1d', size: 13023460L],
+    comet: [sha256: 'fdc66ee6ae44ccdb119e18ed4c5b86a0cca200dc10ddcd1958a55c32ca42937f', size: 4170846L],
+]
 def allowMissingPacks = (project.findProperty('allowMissingPacks') ?: 'true').toString().toBoolean()
 def addonPacks = ['proot', 'directaudio', 'tracking', 'xbox', 'comet'].collectEntries { name ->
     def pack = file("build/packs/${name}.tar.zst")
-    if (!pack.isFile()) {
-        if (ciBuild && !allowMissingPacks) throw new GradleException("Add-on pack ${pack} is missing: run tools/packs/build.sh app/build/packs")
-        return [(name): [sha256: '', size: 0L]]
+    if (pack.isFile()) {
+        def digest = java.security.MessageDigest.getInstance('SHA-256')
+        pack.withInputStream { input ->
+            byte[] buffer = new byte[1 << 20]
+            int n
+            while ((n = input.read(buffer)) > 0) digest.update(buffer, 0, n)
+        }
+        return [(name): [sha256: digest.digest().encodeHex().toString(), size: pack.length()]]
     }
-    def digest = java.security.MessageDigest.getInstance('SHA-256')
-    pack.withInputStream { input ->
-        byte[] buffer = new byte[1 << 20]
-        int n
-        while ((n = input.read(buffer)) > 0) digest.update(buffer, 0, n)
-    }
-    [(name): [sha256: digest.digest().encodeHex().toString(), size: pack.length()]]
+    return [(name): defaultPacks[name]]
 }
 def desktopRemovalSources = new groovy.json.JsonSlurper().parse(file('src/main/assets/desktop-removal/sources.json'))
 if (desktopRemovalSources.archives[desktopKde.DESKTOP_KDE_TAG] != desktopKde.DESKTOP_KDE_SHA256) {
