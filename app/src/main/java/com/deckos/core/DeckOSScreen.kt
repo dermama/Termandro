@@ -56,6 +56,7 @@ fun DeckOSScreen(
     isDesktopInstalled: Boolean,
     onOpenTerminal: () -> Unit,
     onOpenDesktop: () -> Unit,
+    onOpenPacks: () -> Unit,
     onOpenX11: () -> Unit,
     onTestWindow: () -> Unit,
     onRestartX11: () -> Unit,
@@ -189,6 +190,21 @@ fun DeckOSScreen(
         ) {
             Text(
                 text = "Desktop controls & Game Mode",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(vertical = 6.dp),
+            )
+        }
+
+        OutlinedButton(
+            onClick = onOpenPacks,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF7C4DFF)),
+            shape = RoundedCornerShape(16.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF7C4DFF).copy(alpha = 0.5f)),
+        ) {
+            Text(
+                text = "🎮 Extension Packs",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(vertical = 6.dp),

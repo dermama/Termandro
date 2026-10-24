@@ -34,6 +34,12 @@ class ExtensionPackManager(private val context: Context) {
         return stampFile.exists() && packDir.isDirectory
     }
 
+    /** Overload accepting an [ExtensionPack] directly. */
+    fun isInstalled(pack: ExtensionPack): Boolean = isInstalled(pack.id)
+
+    /** Remove a pack and clean its directory. */
+    fun remove(pack: ExtensionPack): Boolean = uninstall(pack.id)
+
     fun getStatus(packId: String): PackStatus {
         if (packId == "phone_privileged") return PackStatus.Installed
         return if (isInstalled(packId)) PackStatus.Installed else PackStatus.NotInstalled
@@ -44,6 +50,18 @@ class ExtensionPackManager(private val context: Context) {
             pack.id to getStatus(pack.id)
         }
         _packStatuses.value = map
+    }
+
+    /**
+     * Install a pack with a [PackStatus] callback suitable for Compose UI.
+     * Runs synchronously — call from a coroutine / IO dispatcher.
+     */
+    fun install(pack: ExtensionPack, onStatus: (PackStatus) -> Unit) {
+        onStatus(PackStatus.Downloading(0f, "Preparing…"))
+        val ok = install(pack) { pct, msg ->
+            onStatus(PackStatus.Downloading(pct, msg))
+        }
+        onStatus(if (ok) PackStatus.Installed else PackStatus.Failed("Installation failed"))
     }
 
     fun install(

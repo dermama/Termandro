@@ -30,6 +30,7 @@ class MainActivity : ComponentActivity() {
             DeckOSTheme {
                 var terminalOpen by rememberSaveable { mutableStateOf(false) }
                 var desktopOpen  by rememberSaveable { mutableStateOf(false) }
+                var packsOpen    by rememberSaveable { mutableStateOf(false) }
 
                 val runtime = androidx.compose.runtime.remember { com.deckos.core.runtime.LinuxRuntime(this@MainActivity) }
                 val sessionManager = androidx.compose.runtime.remember { com.deckos.core.runtime.SessionManager(this@MainActivity) }
@@ -66,30 +67,36 @@ class MainActivity : ComponentActivity() {
                 }
 
                 when {
-                    terminalOpen -> TerminalScreen(onBack = { terminalOpen = false })
+                    terminalOpen ->
+                        TerminalScreen(onBack = { terminalOpen = false })
 
-                    desktopOpen -> DesktopScreen(
-                        onBack = { desktopOpen = false },
-                        // When Openbox is launched, flip back to home then open X11 Lorie view.
-                        onDesktopReady = {
-                            desktopOpen = false
-                            openX11()
-                        },
-                    )
+                    desktopOpen ->
+                        DesktopScreen(
+                            onBack = { desktopOpen = false },
+                            onDesktopReady = {
+                                desktopOpen = false
+                                openX11()
+                            },
+                        )
 
-                    else -> DeckOSScreen(
-                        serverStatus = server,
-                        clientStatus = client,
-                        desktopStatus = desktopStatus,
-                        hwInfo = hwInfo,
-                        isDesktopInstalled = runtime.isDesktopInstalled(),
-                        onOpenTerminal  = { terminalOpen = true },
-                        onOpenDesktop   = { desktopOpen  = true },
-                        onOpenX11       = ::openX11,
-                        onTestWindow    = ::testWindow,
-                        onRestartX11    = ::restartX11,
-                        onStopX11       = ::stopX11,
-                    )
+                    packsOpen ->
+                        com.deckos.core.packs.ExtensionPackScreen(onBack = { packsOpen = false })
+
+                    else ->
+                        DeckOSScreen(
+                            serverStatus = server,
+                            clientStatus = client,
+                            desktopStatus = desktopStatus,
+                            hwInfo = hwInfo,
+                            isDesktopInstalled = runtime.isDesktopInstalled(),
+                            onOpenTerminal  = { terminalOpen = true },
+                            onOpenDesktop   = { desktopOpen  = true },
+                            onOpenPacks     = { packsOpen    = true },
+                            onOpenX11       = ::openX11,
+                            onTestWindow    = ::testWindow,
+                            onRestartX11    = ::restartX11,
+                            onStopX11       = ::stopX11,
+                        )
                 }
             }
         }

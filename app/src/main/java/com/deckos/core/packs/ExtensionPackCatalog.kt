@@ -77,6 +77,9 @@ object ExtensionPackCatalog {
         PHONE_PACK,
     )
 
+    /** Returns all packs; used by [ExtensionPackScreen]. */
+    fun all(): List<ExtensionPack> = ALL_PACKS
+
     fun getPackById(id: String): ExtensionPack? = ALL_PACKS.firstOrNull { it.id == id }
 
     fun getPacksByCategory(category: PackCategory): List<ExtensionPack> =
