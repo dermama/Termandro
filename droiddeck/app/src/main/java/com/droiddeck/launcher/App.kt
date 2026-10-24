@@ -35,6 +35,7 @@ class App : Application() {
         prefetchAddonPacks()
         GpuClockPin.clearLeftover(this)
         com.droiddeck.launcher.core.privileged.AppFreezerEngine.clearLeftover(this)
+        com.droiddeck.launcher.core.privileged.AppFreezerEngine.warmup(this)
         com.droiddeck.launcher.glasses.Glasses.init(this)
         com.droiddeck.launcher.glasses.GlassesMenuMirror.initialize(this)
         BwrapSpawner.start(this)

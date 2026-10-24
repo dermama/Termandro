@@ -428,8 +428,8 @@ class SessionService : Service() {
 
         Log.i(TAG, GpuClockPin.start(this))
         Log.i(TAG, GameThreadHints.start(this))
-        Log.i(TAG, com.droiddeck.launcher.core.privileged.GameModeEngine.apply(this))
-        Log.i(TAG, com.droiddeck.launcher.core.privileged.AppFreezerEngine.apply(this))
+        Log.i(TAG, com.droiddeck.launcher.core.privileged.GameModeEngine.apply(this, gen))
+        Log.i(TAG, com.droiddeck.launcher.core.privileged.AppFreezerEngine.apply(this, gen))
 
         val size = SessionState.outputSize
         val guest = ArrayList<String>()
@@ -610,7 +610,7 @@ class SessionService : Service() {
         if (pid > 1) {
             raiseTracer(pid, gen)
             SessionEvents.guestStarted(pid)
-            com.droiddeck.launcher.core.privileged.GameModeEngine.boostSessionProcess(this, pid)
+            com.droiddeck.launcher.core.privileged.GameModeEngine.boostSessionProcess(this, pid, gen)
         } else {
             SessionEvents.record("guest.start_failed", mapOf("pid" to pid))
             SessionEvents.fail("GUEST_START_FAILED", "The guest process could not be started", pid)
@@ -1668,8 +1668,8 @@ class SessionService : Service() {
         SessionEvents.record("guest.exited", mapOf("status" to status))
         GpuClockPin.stop(this)
         GameThreadHints.stop()
-        com.droiddeck.launcher.core.privileged.GameModeEngine.restore(this)
-        com.droiddeck.launcher.core.privileged.AppFreezerEngine.restore(this)
+        com.droiddeck.launcher.core.privileged.GameModeEngine.restore(this, sessionGen)
+        com.droiddeck.launcher.core.privileged.AppFreezerEngine.restore(this, sessionGen)
         SessionEvents.transition(SessionPhase.STOPPING, "session.stopping", mapOf("status" to status))
         suspendOperationPending = false
         freezePending = false
@@ -1744,8 +1744,8 @@ class SessionService : Service() {
     override fun onDestroy() {
         stopSession(0)
         GameThreadHints.stop() // also when the session never got as far as running
-        com.droiddeck.launcher.core.privileged.GameModeEngine.restore(this)
-        com.droiddeck.launcher.core.privileged.AppFreezerEngine.restore(this)
+        com.droiddeck.launcher.core.privileged.GameModeEngine.restore(this, sessionGen)
+        com.droiddeck.launcher.core.privileged.AppFreezerEngine.restore(this, sessionGen)
         if (screenReceiverRegistered) {
             unregisterReceiver(screenReceiver)
             screenReceiverRegistered = false
