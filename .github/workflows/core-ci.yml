@@ -2,7 +2,13 @@ name: Core CI
 
 on:
   push:
+    paths-ignore:
+      - 'droiddeck/**'
+      - 'droiddeck_analysis/**'
   pull_request:
+    paths-ignore:
+      - 'droiddeck/**'
+      - 'droiddeck_analysis/**'
   workflow_dispatch:
 
 permissions:

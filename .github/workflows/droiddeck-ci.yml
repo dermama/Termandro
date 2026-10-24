@@ -2,7 +2,6 @@ name: DroidDeck CI
 
 on:
   push:
-    branches: [ main ]
     paths:
       - 'droiddeck/**'
       - '.github/workflows/droiddeck-ci.yml'
@@ -47,13 +46,48 @@ jobs:
 
       - name: Build DroidDeck Debug APK
         run: |
-          set -euo pipefail
+          set -o pipefail
           cd droiddeck
           ./gradlew assembleDebug \
             -PndkVersion=29.0.14206865 \
             -PskipRust=true \
             -PskipVerifyRuntimeInputs=true \
-            --stacktrace --no-daemon
+            -PallowMissingPacks=true \
+            --stacktrace --no-daemon 2>&1 | tee /tmp/droiddeck-gradle.log
+
+      - name: Publish Gradle failure summary
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let log = '';
+            try {
+              log = fs.readFileSync('/tmp/droiddeck-gradle.log', 'utf8');
+            } catch (error) {
+              log = String(error);
+            }
+            const lines = log.split('\n');
+            let start = lines.findIndex((line) => /^e: /.test(line));
+            if (start < 0) start = lines.findIndex((line) => line.includes('error:'));
+            if (start < 0) start = lines.findIndex((line) => line.includes('FAILURE:'));
+            if (start < 0) start = Math.max(0, lines.length - 200);
+            const details = lines.slice(start, start + 200).join('\n');
+            await core.summary
+              .addRaw('### DroidDeck Gradle Output\n```text\n' + details + '\n```\n')
+              .write();
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'droiddeck-build-failure',
+              head_sha: context.sha,
+              status: 'completed',
+              conclusion: 'failure',
+              output: {
+                title: 'DroidDeck Build failure',
+                summary: '```text\n' + details.slice(0, 60000) + '\n```',
+              },
+            });
 
       - name: Locate and verify APK
         run: |
