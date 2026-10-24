@@ -31,6 +31,11 @@ object CrashHandler {
                     worker.join(8000)
                 }
                 OrphanReaper.reap("app crash")
+                runCatching {
+                    com.droiddeck.launcher.core.privileged.GameModeEngine.restore(context)
+                    com.droiddeck.launcher.core.privileged.AppFreezerEngine.restore(context)
+                    com.droiddeck.launcher.core.privileged.DynamicAdaptiveGovernor.stop(context)
+                }
             } catch (e: Throwable) {
             } finally {
                 previous?.uncaughtException(thread, error) ?: Runtime.getRuntime().halt(2)

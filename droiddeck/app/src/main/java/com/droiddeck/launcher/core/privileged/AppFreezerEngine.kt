@@ -107,16 +107,17 @@ object AppFreezerEngine {
      */
     fun warmup(context: Context) {
         if (!isWarmingUp.compareAndSet(false, true)) return
+        val appContext = context.applicationContext
         Thread({
             try {
-                val resolvedBloat = queryBloatware(context)
-                val resolvedUser = queryUserApps(context)
-                val dynamicProtected = queryDynamicProtected(context)
+                val resolvedBloat = queryBloatware(appContext)
+                val resolvedUser = queryUserApps(appContext)
+                val dynamicProtected = queryDynamicProtected(appContext)
 
-                cachedBloatware = resolvedBloat
-                cachedUserApps = resolvedUser
-                cachedProtectedPackages = BASE_PROTECTED_PACKAGES + dynamicProtected
-                Log.d(TAG, "warmup complete: bloat=${resolvedBloat.size}, user=${resolvedUser.size}, protected=${cachedProtectedPackages.size}")
+                if (resolvedBloat.isNotEmpty()) cachedBloatware = resolvedBloat
+                if (resolvedUser.isNotEmpty()) cachedUserApps = resolvedUser
+                if (dynamicProtected.isNotEmpty()) cachedProtectedPackages = BASE_PROTECTED_PACKAGES + dynamicProtected
+                Log.d(TAG, "warmup complete: bloat=${cachedBloatware?.size ?: 0}, user=${cachedUserApps?.size ?: 0}, protected=${cachedProtectedPackages.size}")
             } catch (t: Throwable) {
                 Log.w(TAG, "warmup non-fatal error", t)
             } finally {
@@ -142,13 +143,13 @@ object AppFreezerEngine {
         val protectedSet = cachedProtectedPackages + pkgName
 
         if (SessionPrefs.freezeBloatware(context)) {
-            val bloat = cachedBloatware ?: queryBloatware(context).also { cachedBloatware = it }
+            val bloat = cachedBloatware ?: queryBloatware(context).also { if (it.isNotEmpty()) cachedBloatware = it }
             packagesToSuspend.addAll(bloat)
             results.add("bloat=${bloat.size}")
         }
 
         if (SessionPrefs.freezeUserApps(context)) {
-            val user = cachedUserApps ?: queryUserApps(context).also { cachedUserApps = it }
+            val user = cachedUserApps ?: queryUserApps(context).also { if (it.isNotEmpty()) cachedUserApps = it }
             packagesToSuspend.addAll(user)
             results.add("user_apps=${user.size}")
         }

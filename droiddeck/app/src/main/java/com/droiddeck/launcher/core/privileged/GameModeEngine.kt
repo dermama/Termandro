@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Build
 import android.util.Log
 import com.droiddeck.launcher.session.SessionPrefs
+import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -39,6 +40,7 @@ import java.util.concurrent.atomic.AtomicInteger
  */
 object GameModeEngine {
     private const val TAG = "GameModeEngine"
+    private const val MARKER_FILE = "gamemode-marker.txt"
 
     // Cores 2, 3, 4, 5, 6 (5x Cortex-A720 Performance cores, excluding Little cores 0-1 and hot Prime core 7)
     // Binary: 01111100 = 0x7c
@@ -88,6 +90,8 @@ object GameModeEngine {
             Log.w(TAG, "apply aborted: generation changed from $sessionGen to ${activeGen.get()}")
             return "game mode: aborted"
         }
+
+        saveMarker(context, savedBgProcessLimit ?: "")
 
         // Single-shot consolidated shell command
         val batchScript = buildString {
@@ -162,7 +166,7 @@ object GameModeEngine {
     @Synchronized
     fun restore(context: Context, sessionGen: Int = 0) {
         activeGen.set(0) // Invalidate any ongoing apply
-        if (!applied) return
+        if (!applied && !hasMarker(context)) return
         applied = false
         Log.i(TAG, "game mode: restoring system settings (gen=$sessionGen)...")
 
@@ -186,6 +190,7 @@ object GameModeEngine {
         }
 
         exec(context, restoreScript)
+        deleteMarker(context)
 
         savedBgProcessLimit = null
         savedSemEnhanced = null
@@ -194,6 +199,38 @@ object GameModeEngine {
         aggressiveActive = false
 
         Log.i(TAG, "game mode: OFF (all settings restored cleanly)")
+    }
+
+    /**
+     * Ensures any leftover settings from a crashed session or abrupt power loss are
+     * restored to defaults on next app startup.
+     */
+    fun clearLeftover(context: Context) {
+        if (!hasMarker(context)) return
+        val appContext = context.applicationContext
+        Thread({
+            try {
+                Log.w(TAG, "clearLeftover: found leftover game mode state, restoring defaults...")
+                val savedBg = loadMarker(appContext)
+                val pkg = appContext.packageName
+                val script = buildString {
+                    if (savedBg.isNotEmpty() && savedBg != "null") {
+                        append("settings put global background_process_limit $savedBg 2>/dev/null; ")
+                    } else {
+                        append("settings delete global background_process_limit 2>/dev/null; ")
+                    }
+                    append("cmd game reset $pkg 2>/dev/null || cmd game mode 1 $pkg 2>/dev/null; ")
+                    append("settings delete global sem_enhanced_cpu_responsiveness 2>/dev/null; ")
+                    append("settings delete global restricted_device_performance 2>/dev/null; ")
+                    append("cmd power set-fixed-performance-mode-enabled false 2>/dev/null; ")
+                }
+                exec(appContext, script)
+                deleteMarker(appContext)
+                Log.i(TAG, "clearLeftover: game mode leftover settings cleaned successfully")
+            } catch (t: Throwable) {
+                Log.e(TAG, "clearLeftover error", t)
+            }
+        }, "gamemode-clear-leftover").start()
     }
 
     fun isActive(): Boolean = applied
@@ -240,6 +277,23 @@ object GameModeEngine {
     }
 
     // ── Internal Helpers ───────────────────────────────────────────────────────
+
+    private fun saveMarker(context: Context, data: String) {
+        try { File(context.filesDir, MARKER_FILE).writeText(data) } catch (_: Exception) {}
+    }
+
+    private fun loadMarker(context: Context): String {
+        return try {
+            val f = File(context.filesDir, MARKER_FILE)
+            if (f.exists()) f.readText().trim() else ""
+        } catch (_: Exception) { "" }
+    }
+
+    private fun hasMarker(context: Context): Boolean = File(context.filesDir, MARKER_FILE).exists()
+
+    private fun deleteMarker(context: Context) {
+        try { File(context.filesDir, MARKER_FILE).delete() } catch (_: Exception) {}
+    }
 
     private fun exec(context: Context, cmd: String): String {
         return try { PrivilegedBridge.execute(cmd).output } catch (t: Throwable) {
