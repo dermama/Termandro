@@ -29,7 +29,8 @@ object X11Server {
     private const val SERVER_PROCESS_NAME = "termux-x11-deck"
     private const val SERVER_ENTRY_POINT = "com.termux.x11.CmdEntryPoint"
     private const val SERVER_ARGUMENTS = "$SERVER_ENTRY_POINT $DISPLAY -ac"
-    private const val SOCKET_WAIT_MS = 6_000L
+    // L-52: reduced from 6000ms — socket appears in <1s on S24 Ultra; 4s gives safe margin
+    private const val SOCKET_WAIT_MS = 4_000L
 
     fun socketPath(context: Context): String =
         File(File(context.filesDir, "tmp"), ".X11-unix/X$DISPLAY_NUMBER").absolutePath
@@ -110,8 +111,11 @@ object X11Server {
         val tmpDir = File(filesDir, "tmp").apply { mkdirs() }
         val homeDir = File(filesDir, "home").apply { mkdirs() }
 
-        if (!File(xkbDir, "rules/evdev").isFile) {
+        // L-52: use a stamp file so we skip extracting 2,000+ XKB files on every launch
+        val xkbStamp = File(filesDir, "xkb.stamp")
+        if (!xkbStamp.isFile || !xkbDir.isDirectory) {
             extractXkb(context, xkbDir)
+            xkbStamp.writeText("ok")
         }
 
         val socket = File(socketPath(context))
@@ -139,11 +143,12 @@ object X11Server {
             }.start()
         }.onFailure { return null }
 
+        // L-52: poll at 50ms intervals instead of 120ms for faster detection
         val deadline = System.currentTimeMillis() + SOCKET_WAIT_MS
         while (System.currentTimeMillis() < deadline) {
             val pid = readPid(context)
             if (pid != null && File(socketPath(context)).exists()) return pid
-            Thread.sleep(120)
+            Thread.sleep(50)
         }
         return readPid(context)
     }

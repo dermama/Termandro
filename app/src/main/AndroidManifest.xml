@@ -1,8 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Core permissions -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- L-71: GameService keeps a WakeLock during gameplay to prevent CPU throttle -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- L-77: GameOverlay requires SYSTEM_ALERT_WINDOW to draw over the game.
+         Requested at runtime for API 28+ via Settings.canDrawOverlays(). -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+    <!-- L-71: Foreground service type declaration (required API 34+) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
 
     <application
         android:allowBackup="false"
@@ -20,10 +31,30 @@
             </intent-filter>
         </activity>
 
+        <!-- X11 server background service -->
         <service
             android:name=".X11Service"
             android:exported="false" />
 
+        <!-- L-71: Game session service — runs independently of Core desktop.
+             foregroundServiceType="connectedDevice" is a safe type for gaming
+             (no camera/mic/location). Replace with "mediaPlayback" if GPU overlay
+             triggers PlayStore policy flags in the future. -->
+        <service
+            android:name=".game.GameService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
+
+        <!-- L-71: BroadcastReceiver to handle ACTION_STOP from notification -->
+        <receiver
+            android:name=".game.GameStopReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.deckos.game.STOP" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
 </manifest>
+

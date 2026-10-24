@@ -28,6 +28,27 @@ class LinuxRuntime(private val context: Context) {
         private const val OLD_PREFIX = "/data/data/com.termux/files/usr"
         private const val OLD_HOME = "/data/data/com.termux/files/home"
         private const val MARKER = ".deckos_bootstrap_v1"
+        private const val DESKTOP_MARKER = ".deckos_desktop_v1"
+
+        /** Minimal desktop package set: window manager + terminal + fonts.
+         *  Openbox, st (simple terminal), and xorg-xsetroot live in Termux's x11-repo.
+         *  L-61: Added dbus for session bus support (featherpad/pcmanfm expect it).
+         */
+        private val X11_REPO_PACKAGE = listOf("x11-repo")
+        private val DESKTOP_PACKAGES = listOf(
+            "openbox",
+            "st",
+            "fontconfig",
+            "fontconfig-utils",
+            "xorg-xsetroot",
+            "tint2",
+            "pcmanfm",
+            "featherpad",
+            "pulseaudio",
+            "xclip",
+            "dbus",         // L-61: session bus for X11 desktop apps
+            "devilspie2",   // L-61: window rules for mobile form factor
+        )
 
         private val TEXT_DIRS = listOf(
             "bin",
@@ -47,9 +68,310 @@ class LinuxRuntime(private val context: Context) {
     fun isInstalled(): Boolean =
         File(baseDir, MARKER).exists() && File(prefixDir, "bin/bash").exists()
 
+    fun isDesktopInstalled(): Boolean =
+        File(baseDir, DESKTOP_MARKER).exists() &&
+            File(prefixDir, "bin/openbox").exists() &&
+            File(prefixDir, "bin/st").exists() &&
+            File(prefixDir, "bin/tint2").exists() &&
+            File(prefixDir, "bin/pcmanfm").exists() &&
+            File(prefixDir, "bin/featherpad").exists() &&
+            File(prefixDir, "bin/pulseaudio").exists() &&
+            File(prefixDir, "bin/dbus-daemon").exists()  // L-61: dbus required
+
     fun shellPath(): String = File(prefixDir, "bin/bash").absolutePath
 
     fun homePath(): String = homeDir.absolutePath
+
+    /** Ensure essential desktop config files (Openbox autostart, PulseAudio, .bashrc, fake root, workspace) exist. */
+    private fun ensureDesktopConfigFiles() {
+        // Workspace directories
+        val workspaceDir = File(baseDir, "workspace")
+        workspaceDir.mkdirs()
+        val desktopDir = File(homeDir, "Desktop")
+        desktopDir.mkdirs()
+        val wsLink = File(homeDir, "workspace")
+        if (!wsLink.exists()) {
+            runCatching { Os.symlink(workspaceDir.absolutePath, wsLink.absolutePath) }
+        }
+        val desktopWsLink = File(desktopDir, "Workspace")
+        if (!desktopWsLink.exists()) {
+            runCatching { Os.symlink(workspaceDir.absolutePath, desktopWsLink.absolutePath) }
+        }
+
+        // Shared phone storage link
+        val phoneStorage = File(context.getExternalFilesDir(null), "storage")
+        phoneStorage.mkdirs()
+        val sharedLink = File(workspaceDir, "phone_storage")
+        if (!sharedLink.exists()) {
+            runCatching { Os.symlink(phoneStorage.absolutePath, sharedLink.absolutePath) }
+        }
+
+        // Configure PulseAudio default.pa for low-latency AAudio and TCP streaming
+        val pulseDefaultPa = File(prefixDir, "etc/pulse/default.pa")
+        if (pulseDefaultPa.isFile) {
+            val content = pulseDefaultPa.readText()
+            var modified = content
+            if (modified.contains("load-module module-sles-sink")) {
+                modified = modified.replace("load-module module-sles-sink", "load-module module-aaudio-sink")
+            }
+            if (modified.contains("#load-module module-native-protocol-tcp")) {
+                modified = modified.replace(
+                    "#load-module module-native-protocol-tcp",
+                    "load-module module-native-protocol-tcp auth-ip-acl=127.0.0.1 auth-anonymous=1"
+                )
+            }
+            if (modified != content) {
+                pulseDefaultPa.writeText(modified)
+            }
+        }
+
+        // L-61: Configure devilspie2 window rules for mobile form factor
+        val devilspie2Dir = File(homeDir, ".config/devilspie2")
+        devilspie2Dir.mkdirs()
+        val devilspie2Cfg = File(devilspie2Dir, "deckos-mobile.lua")
+        if (!devilspie2Cfg.exists()) {
+            devilspie2Cfg.writeText("""
+                -- DeckOS: maximize all windows by default on mobile screens
+                if get_window_type() == "WINDOW_TYPE_NORMAL" then
+                    local w = get_screen_geometry()["width"]
+                    if w < 1280 then
+                        maximize()
+                    end
+                end
+            """.trimIndent() + "\n")
+        }
+
+        val configDir = File(homeDir, ".config/openbox")
+        configDir.mkdirs()
+        val autostart = File(configDir, "autostart")
+        if (!autostart.exists() || !autostart.readText().contains("--rcfile")) {
+            autostart.writeText(
+                """
+                #!/data/user/0/com.deckos.core/files/usr/bin/bash
+                export DISPLAY=:1
+                export LD_LIBRARY_PATH=/data/user/0/com.deckos.core/files/usr/lib
+                export LD_PRELOAD=/data/user/0/com.deckos.core/files/usr/lib/libsocket_hook.so
+                export DECKOS_PREFIX=/data/user/0/com.deckos.core/files/usr
+                export HOME=/data/user/0/com.deckos.core/files/home
+                export TMPDIR=/data/user/0/com.deckos.core/files/tmp
+                export PULSE_SERVER=tcp:127.0.0.1:4713
+                # L-61: Start dbus session bus FIRST (apps depend on it)
+                if command -v dbus-daemon >/dev/null 2>&1; then
+                    eval $(dbus-launch --sh-syntax 2>/dev/null) || true
+                    export DBUS_SESSION_BUS_ADDRESS
+                fi
+                # L-53: Start PulseAudio in background — don't block Openbox startup
+                pulseaudio --start --exit-idle-time=-1 2>/dev/null &
+                # Set background immediately (fast, no deps)
+                xorg-xsetroot -solid "#0D1117" 2>/dev/null || xsetroot -solid "#0D1117" 2>/dev/null || true
+                # Desktop services & panels — all background
+                tint2 &
+                pcmanfm --desktop &
+                # L-61: devilspie2 window rules for mobile
+                command -v devilspie2 >/dev/null 2>&1 && devilspie2 &
+                st -e bash --rcfile "${'$'}HOME/.bashrc" &
+                """.trimIndent() + "\n",
+            )
+            autostart.setExecutable(true, false)
+        }
+
+        val bashrc = File(homeDir, ".bashrc")
+        if (!bashrc.exists()) {
+            bashrc.writeText(
+                """
+                # DeckOS Default Shell Configuration
+                export PS1='\[\033[01;36m\]deckos\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
+                export PULSE_SERVER=tcp:127.0.0.1:4713
+                alias ls='ls --color=auto'
+                alias ll='ls -la'
+                """.trimIndent() + "\n",
+            )
+        }
+
+        val fakeRootFiles = File(baseDir, ".deckos-termux-root/files")
+        fakeRootFiles.mkdirs()
+        val fakeHome = File(fakeRootFiles, "home")
+        if (!fakeHome.exists()) {
+            runCatching { Os.symlink(homeDir.absolutePath, fakeHome.absolutePath) }
+        }
+        val fakeUsr = File(fakeRootFiles, "usr")
+        if (!fakeUsr.exists()) {
+            runCatching { Os.symlink(prefixDir.absolutePath, fakeUsr.absolutePath) }
+        }
+    }
+
+    /** Script that starts the minimal DeckOS desktop session under DISPLAY :1. */
+    private fun desktopSessionScript(): File {
+        ensureDesktopConfigFiles()
+        val script = File(homeDir, ".deckos-start-desktop")
+        if (!script.exists()) {
+            script.writeText(
+                """
+                #!/data/user/0/com.deckos.core/files/usr/bin/bash
+                export DISPLAY=:1
+                export PULSE_SERVER=tcp:127.0.0.1:4713
+                # L-61: Start dbus session bus (apps need it before openbox-session)
+                if command -v dbus-daemon >/dev/null 2>&1; then
+                    eval $(dbus-launch --sh-syntax 2>/dev/null) || true
+                    export DBUS_SESSION_BUS_ADDRESS
+                fi
+                # Start the window manager session
+                exec openbox-session
+                """.trimIndent() + "\n",
+            )
+            script.setExecutable(true, false)
+        }
+        return script
+    }
+
+    /**
+     * L-61: Repair half-installed dpkg packages before any session start.
+     * Ported from DroidDesk's pre-session repair pattern.
+     * Safe to call repeatedly — dpkg --configure -a is idempotent.
+     */
+    fun repairBrokenPackages() {
+        if (!isInstalled()) return
+        val logFile = File(baseDir, "repair.log")
+        runCatching {
+            // Step 1: finish any interrupted dpkg configure
+            val pb1 = ProcessBuilder(
+                File(prefixDir, "bin/dpkg").absolutePath,
+                "--configure", "-a"
+            )
+            pb1.environment().clear()
+            for (entry in environment()) {
+                val eq = entry.indexOf('=')
+                if (eq > 0) pb1.environment()[entry.substring(0, eq)] = entry.substring(eq + 1)
+            }
+            pb1.environment()["DEBIAN_FRONTEND"] = "noninteractive"
+            pb1.directory(homeDir)
+            pb1.redirectErrorStream(true)
+            pb1.redirectOutput(ProcessBuilder.Redirect.appendTo(logFile))
+            pb1.start().waitFor()
+
+            // Step 2: fix broken dependencies
+            val pb2 = ProcessBuilder(
+                File(prefixDir, "bin/apt-get").absolutePath,
+                "install", "-f", "-y"
+            )
+            pb2.environment().clear()
+            for (entry in environment()) {
+                val eq = entry.indexOf('=')
+                if (eq > 0) pb2.environment()[entry.substring(0, eq)] = entry.substring(eq + 1)
+            }
+            pb2.environment()["DEBIAN_FRONTEND"] = "noninteractive"
+            pb2.directory(homeDir)
+            pb2.redirectErrorStream(true)
+            pb2.redirectOutput(ProcessBuilder.Redirect.appendTo(logFile))
+            pb2.start().waitFor()
+        }.onFailure { e ->
+            Log.w(TAG, "Package repair failed (non-fatal): ${e.message}")
+        }
+    }
+
+    /**
+     * Install the minimal desktop package set (Openbox + xterm) via apt.
+     * Calls [onProgress] with 0..1 progress and a status message.
+     * Must be called from a background thread — never the main thread.
+     */
+    @Synchronized
+    fun installDesktopPackages(onProgress: (Float, String) -> Unit) {
+        if (isDesktopInstalled()) {
+            onProgress(1f, "Desktop already installed")
+            return
+        }
+        require(isInstalled()) { "Bootstrap must be installed before the desktop" }
+
+        onProgress(0.05f, "Enabling X11 package repository")
+        runApt(listOf("install", "-y") + X11_REPO_PACKAGE)
+        onProgress(0.15f, "Updating package lists")
+        runApt(listOf("update"))
+        onProgress(0.30f, "Installing desktop environment")
+        runApt(listOf("install", "-y", "--no-install-recommends") + DESKTOP_PACKAGES)
+        // Write the session script now that openbox binary is available.
+        desktopSessionScript()
+        File(baseDir, DESKTOP_MARKER).writeText("openbox+st\n")
+        onProgress(1f, "Desktop installed")
+    }
+
+    /**
+     * Launch the desktop session script as a background process.
+     * Returns the PID of the launched process, or null if launch failed.
+     * The Openbox process is detached — it continues after this call returns.
+     */
+    fun startDesktop(): Int? {
+        desktopSessionScript()
+        val script = File(homeDir, ".deckos-start-desktop").absolutePath
+        val pidFile = File(baseDir, "openbox.pid")
+        pidFile.delete()
+
+        // Wrap the session script so it writes its own PID before exec-ing openbox.
+        val wrapper = File(homeDir, ".deckos-start-desktop-wrapped")
+        wrapper.writeText(
+            "#!/system/bin/sh\necho \$\$ > '${pidFile.absolutePath}'\nexec '$script'\n"
+        )
+        wrapper.setExecutable(true, false)
+
+        return runCatching {
+            val pb = ProcessBuilder(shellPath(), wrapper.absolutePath)
+            pb.environment().clear()
+            for (entry in environment()) {
+                val eq = entry.indexOf('=')
+                if (eq > 0) pb.environment()[entry.substring(0, eq)] = entry.substring(eq + 1)
+            }
+            pb.directory(homeDir)
+            pb.redirectErrorStream(true)
+            val logFile = File(baseDir, "openbox.log")
+            // L-53: stamp launch time for bench/measure-startup.sh
+            logFile.appendText("[DeckOS] desktop-start ${System.currentTimeMillis()}\n")
+            pb.redirectOutput(ProcessBuilder.Redirect.appendTo(logFile))
+            val proc = pb.start()
+            // L-53: poll at 50ms for faster PID detection (was 100ms)
+            var waited = 0
+            while (waited < 2000 && !pidFile.isFile && proc.isAlive) {
+                Thread.sleep(50)
+                waited += 50
+            }
+            if (!proc.isAlive) {
+                Log.w(TAG, "Openbox exited immediately: rc=${proc.exitValue()}")
+                return null
+            }
+            pidFile.takeIf { it.isFile }?.readText()?.trim()?.toIntOrNull()
+                ?: -1  // -1 means running but PID unknown — still considered success
+        }.getOrElse { e ->
+            Log.e(TAG, "Could not start desktop", e)
+            null
+        }
+    }
+
+
+    /** Run an apt command inside the DeckOS prefix, capturing output to apt.log. */
+    private fun runApt(args: List<String>) {
+        val prefix = prefixDir.absolutePath
+        val cmd = mutableListOf(File(prefixDir, "bin/apt").absolutePath) + args
+        val pb = ProcessBuilder(cmd)
+        pb.environment().clear()
+        for (entry in environment()) {
+            val eq = entry.indexOf('=')
+            if (eq > 0) pb.environment()[entry.substring(0, eq)] = entry.substring(eq + 1)
+        }
+        pb.environment()["DEBIAN_FRONTEND"] = "noninteractive"
+        pb.environment()["APT_LISTCHANGES_FRONTEND"] = "none"
+        pb.directory(homeDir)
+        pb.redirectErrorStream(true)
+        pb.redirectOutput(File(baseDir, "apt.log"))
+        val proc = pb.start()
+        val rc = proc.waitFor()
+        if (rc != 0) {
+            val tail = File(baseDir, "apt.log")
+                .takeIf { it.isFile }
+                ?.readLines()
+                ?.takeLast(8)
+                ?.joinToString("\n")
+                ?: "(no log)"
+            throw IOException("apt ${args.joinToString(" ")} failed (rc=$rc): $tail")
+        }
+    }
 
     fun prepare() {
         if (isInstalled()) {
@@ -83,7 +405,7 @@ class LinuxRuntime(private val context: Context) {
         val prefix = prefixDir.absolutePath
         val home = homeDir.absolutePath
         val tmp = tmpDir.absolutePath
-        return arrayOf(
+        val baseEnv = arrayOf(
             "PREFIX=$prefix",
             "HOME=$home",
             "TMPDIR=$tmp",
@@ -100,7 +422,7 @@ class LinuxRuntime(private val context: Context) {
             "TERMUX_APP__PACKAGE_NAME=com.deckos.core",
             "TERMUX__PREFIX=$prefix",
             "TERMUX__HOME=$home",
-            "TERMUX_VERSION=DeckOS 0.0.5",
+            "TERMUX_VERSION=DeckOS 0.0.6",
             "TERMUX_APP_PACKAGE_MANAGER=apt",
             "DPKG_ADMINDIR=$prefix/var/lib/dpkg",
             "APT_CONFIG=$prefix/etc/apt/apt.conf.d/99-deckos-paths.conf",
@@ -108,7 +430,11 @@ class LinuxRuntime(private val context: Context) {
             "ANDROID_ROOT=${System.getenv("ANDROID_ROOT") ?: "/system"}",
             "EXTERNAL_STORAGE=${System.getenv("EXTERNAL_STORAGE") ?: "/sdcard"}",
         )
+        // L-63: Append GPU-specific env vars (opt-in: DECKOS_GPU=turnip|software)
+        val gpuEnv = DeckOSGpuDetector.extraEnvArray(prefix)
+        return if (gpuEnv.isEmpty()) baseEnv else baseEnv + gpuEnv
     }
+
 
     private fun download(onProgress: (Float, String) -> Unit): File {
         val cached = File(context.cacheDir, "bootstrap-aarch64.zip")
@@ -337,6 +663,7 @@ class LinuxRuntime(private val context: Context) {
             staging.outputStream().use { output -> input.copyTo(output) }
         }
         staging.setExecutable(true, false)
+        destination.delete()
         if (!staging.renameTo(destination)) {
             staging.delete()
             throw IOException("Could not install path hook")
@@ -466,6 +793,7 @@ class LinuxRuntime(private val context: Context) {
         writeAptConfig(prefixDir, prefixDir.absolutePath)
         prepareDirectories(prefixDir)
         linkRuntimeDirectories(prefixDir)
+        ensureDesktopConfigFiles()
     }
 
     private fun sha256(file: File): String {

@@ -14,6 +14,19 @@
 #include <stdarg.h>
 #include <errno.h>
 #include <android/log.h>
+/* L-64: close_range shim — needed on Android kernels built on 5.4 that
+ * return EINVAL for close_range(3, UINT_MAX, 0). GLib detects ENOSYS and
+ * falls back to its safe loop. EINVAL causes it to abort. */
+#include <linux/close_range.h>
+#ifndef CLOSE_RANGE_CLOEXEC
+#define CLOSE_RANGE_CLOEXEC (1U << 2)
+#endif
+/* L-64: selective debug logging — set DECKOS_HOOK_DEBUG=1 to enable */
+#define HOOK_LOG(...) do { \
+    if (__builtin_expect(hook_debug, 0)) \
+        __android_log_print(ANDROID_LOG_DEBUG, "DeckOSHook", __VA_ARGS__); \
+} while(0)
+static int hook_debug = 0;
 
 #ifndef NEW_PREFIX
 #define NEW_PREFIX "/data/user/0/com.deckos.core/files/usr"
@@ -21,14 +34,34 @@
 
 static const char *TERMUX_PREFIX = "/data/data/com.termux/files/usr";
 static const char *TERMUX_HOME = "/data/data/com.termux/files/home";
+static const char *TERMUX_USER0_PREFIX = "/data/user/0/com.termux/files/usr";
+static const char *TERMUX_USER0_HOME = "/data/user/0/com.termux/files/home";
 static const char *REL_TERMUX_PREFIX = "data/data/com.termux/files/usr";
 static const char *REL_TERMUX_HOME = "data/data/com.termux/files/home";
 static const char *REL_TERMUX_BASE = "data/data/com.termux";
 static const char *ABS_TERMUX_BASE = "/data/data/com.termux";
+static const char *TERMUX_USER0_BASE = "/data/user/0/com.termux";
 
 static const char *new_prefix(void) {
     const char *value = getenv("DECKOS_PREFIX");
     return (value && value[0]) ? value : NEW_PREFIX;
+}
+
+static const char *new_home(void) {
+    /* L-64: Avoid the static buffer race — read HOME from env every call.
+     * getenv() is not signal-safe but is called from non-async contexts only.
+     * The static fallback buf is written once under hook_initializing guard. */
+    const char *value = getenv("HOME");
+    if (value && value[0]) return value;
+    /* Fallback: derive from prefix. Written once during init, safe to read. */
+    static char buf[1024];
+    static int buf_initialized = 0;
+    if (!buf_initialized) {
+        snprintf(buf, sizeof(buf), "%s/../home", new_prefix());
+        __sync_synchronize();
+        buf_initialized = 1;
+    }
+    return buf;
 }
 
 static const char *fake_termux_root(void) {
@@ -157,11 +190,37 @@ static void do_init() {
 __attribute__((constructor))
 static void init_hook() {
     do_init();
+    /* L-64: Read debug flag once at startup */
+    const char *dbg = getenv("DECKOS_HOOK_DEBUG");
+    hook_debug = (dbg && dbg[0] == '1') ? 1 : 0;
 }
 
 static void setup() {
     if (!hook_initialized) do_init();
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * L-64: close_range() shim — ported from DroidDesk's close_range_compat.c
+ *
+ * Some Android kernels built on 5.4 return EINVAL for:
+ *   close_range(3, UINT_MAX, 0)
+ * GLib interprets ENOSYS as "not supported, fall back to loop" but treats
+ * EINVAL as a fatal error and aborts. Returning ENOSYS here is the safe fix.
+ *
+ * S24 Ultra (Android 16, kernel 6.x) does NOT need this — the syscall works.
+ * This shim is a safe no-op on all kernels where close_range works correctly.
+ * ────────────────────────────────────────────────────────────────────────── */
+#include <sys/syscall.h>
+int close_range(unsigned int first, unsigned int last, unsigned int flags) {
+    long ret = syscall(__NR_close_range, first, last, flags);
+    if (ret < 0 && (errno == EINVAL || errno == ENOSYS)) {
+        /* Kernel doesn't support it properly — tell GLib to use the safe loop */
+        errno = ENOSYS;
+        return -1;
+    }
+    return (int)ret;
+}
+
 
 static const char* strip_dot_slash(const char *path) {
     if (path && path[0] == '.' && path[1] == '/') {
@@ -175,7 +234,7 @@ static const char* rewrite_path(const char* path, char* buf, size_t buf_size) {
 
     const char *p = strip_dot_slash(path);
 
-    const char *home = getenv("HOME");
+    const char *home = new_home();
 
     size_t rel_len = strlen(REL_TERMUX_PREFIX);
     if (strncmp(p, REL_TERMUX_PREFIX, rel_len) == 0) {
@@ -201,11 +260,26 @@ static const char* rewrite_path(const char* path, char* buf, size_t buf_size) {
         return buf;
     }
 
+    size_t u0_term_len = strlen(TERMUX_USER0_PREFIX);
+    if (strncmp(path, TERMUX_USER0_PREFIX, u0_term_len) == 0) {
+        snprintf(buf, buf_size, "%s%s", new_prefix(), path + u0_term_len);
+        return buf;
+    }
+
     size_t home_len = strlen(TERMUX_HOME);
     if (home && strncmp(path, TERMUX_HOME, home_len) == 0) {
         char next = path[home_len];
         if (next == '/' || next == '\0') {
             snprintf(buf, buf_size, "%s%s", home, path + home_len);
+            return buf;
+        }
+    }
+
+    size_t u0_home_len = strlen(TERMUX_USER0_HOME);
+    if (home && strncmp(path, TERMUX_USER0_HOME, u0_home_len) == 0) {
+        char next = path[u0_home_len];
+        if (next == '/' || next == '\0') {
+            snprintf(buf, buf_size, "%s%s", home, path + u0_home_len);
             return buf;
         }
     }
@@ -228,6 +302,15 @@ static const char* rewrite_path(const char* path, char* buf, size_t buf_size) {
         }
     }
 
+    size_t u0_base_len = strlen(TERMUX_USER0_BASE);
+    if (strncmp(path, TERMUX_USER0_BASE, u0_base_len) == 0) {
+        char next = path[u0_base_len];
+        if (next == '/' || next == '\0') {
+            snprintf(buf, buf_size, "%s%s", fake_termux_root(), path + u0_base_len);
+            return buf;
+        }
+    }
+
     const char *tmpdir = getenv("TMPDIR");
     const char *fhs_prefixes[] = {"/usr/", "/bin/", "/lib/", "/etc/", "/var/", "/tmp/"};
     const char *subdirs[] = {"usr", "bin", "lib", "etc", "var", "tmp"};
@@ -246,9 +329,11 @@ static const char* rewrite_path(const char* path, char* buf, size_t buf_size) {
     return path;
 }
 
-/* Helper: rewrite a path if dirfd refers to the current working directory. */
+/* Helper: rewrite a path if dirfd refers to the current working directory, or if the path is absolute.
+ * Per POSIX, if pathname is absolute, dirfd is completely ignored. */
 static const char* rewrite_at_path(int dirfd, const char* path, char* buf, size_t buf_size) {
-    if (dirfd == AT_FDCWD) {
+    if (!path) return NULL;
+    if (path[0] == '/' || dirfd == AT_FDCWD) {
         return rewrite_path(path, buf, buf_size);
     }
     return path;
@@ -394,11 +479,29 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
         memcpy(&un, addr, addrlen > sizeof(un) ? sizeof(un) : addrlen);
 
         const char *new_prefix_tmp = getenv("TMPDIR");
-        if (!new_prefix_tmp) new_prefix_tmp = new_prefix();
+        char fallback_tmp[512];
+        if (!new_prefix_tmp || !new_prefix_tmp[0]) {
+            snprintf(fallback_tmp, sizeof(fallback_tmp), "%s/../tmp", new_prefix());
+            new_prefix_tmp = fallback_tmp;
+        }
         char path_buf[256];
         const char *new_path = NULL;
+        int is_abstract = 0;
 
-        if (un.sun_path[0] != '\0') {
+        if (un.sun_path[0] == '\0') {
+            /* Abstract socket: name starts at sun_path + 1 */
+            const char *abs_name = un.sun_path + 1;
+            const char *suffix = strstr(abs_name, "/.X11-unix/");
+            int under_tmp = strncmp(abs_name, "/tmp/", 5) == 0;
+            int under_termux = strncmp(abs_name, TERMUX_PREFIX, strlen(TERMUX_PREFIX)) == 0;
+            if (suffix && (under_tmp || under_termux)) {
+                suffix += strlen("/.X11-unix/");
+                snprintf(path_buf, sizeof(path_buf), "%s/.X11-unix/%s", new_prefix_tmp, suffix);
+                new_path = path_buf;
+                is_abstract = 1;
+            }
+        } else {
+            /* Filesystem socket */
             const char *suffix = strstr(un.sun_path, "/.X11-unix/");
             int under_tmp = strncmp(un.sun_path, "/tmp/", 5) == 0;
             int under_termux = strncmp(un.sun_path, TERMUX_PREFIX, strlen(TERMUX_PREFIX)) == 0;
@@ -406,12 +509,22 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
                 suffix += strlen("/.X11-unix/");
                 snprintf(path_buf, sizeof(path_buf), "%s/.X11-unix/%s", new_prefix_tmp, suffix);
                 new_path = path_buf;
+                is_abstract = 0;
             }
         }
+
         if (new_path) {
-            strncpy(un.sun_path, new_path, sizeof(un.sun_path) - 1);
-            un.sun_path[sizeof(un.sun_path) - 1] = '\0';
-            socklen_t new_len = offsetof(struct sockaddr_un, sun_path) + strlen(un.sun_path) + 1;
+            socklen_t new_len;
+            if (is_abstract) {
+                un.sun_path[0] = '\0';
+                strncpy(un.sun_path + 1, new_path, sizeof(un.sun_path) - 2);
+                un.sun_path[sizeof(un.sun_path) - 1] = '\0';
+                new_len = offsetof(struct sockaddr_un, sun_path) + 1 + strlen(un.sun_path + 1);
+            } else {
+                strncpy(un.sun_path, new_path, sizeof(un.sun_path) - 1);
+                un.sun_path[sizeof(un.sun_path) - 1] = '\0';
+                new_len = offsetof(struct sockaddr_un, sun_path) + strlen(un.sun_path) + 1;
+            }
             return real_connect(sockfd, (struct sockaddr *)&un, new_len);
         }
     }
