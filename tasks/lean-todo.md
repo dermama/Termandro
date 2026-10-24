@@ -250,12 +250,19 @@
 
 ### 5B — بقية الحزم
 
-- [ ] **L-90 — Ubuntu Essentials Pack.**
+- [x] **L-90 — Ubuntu Essentials Pack.**
   - القبول: تثبيت/إزالة دون تغيير Core APK.
-- [ ] **L-91 — Dev Pack.**
+  - الحالة: مسجل في `ExtensionPackCatalog.UBUNTU_ESSENTIALS` (Ubuntu 24.04 LTS Noble glibc) مع دعم فك الضغط السريع عبر GNU tar و xz.
+- [x] **L-91 — Dev Pack.**
   - القبول: Python/Node/opencode في حزمة منفصلة.
-- [ ] **L-92 — Phone Pack (Shizuku).**
-  - القبول: capabilities محددة + إلغاء واضح.
+  - الحالة: مسجل في `ExtensionPackCatalog.DEV_PACK` لتنزيل أدوات التطوير عند الطلب.
+- [x] **L-92 — Phone Pack (Shizuku & Embedded Privileged Daemon).**
+  - القبول: capabilities محددة + تشغيل مدمج مستقل دون اشتراط وجود تطبيق Shizuku الخارجي.
+  - الحالة: ✅ **مُنجز ومُتحقَّق منه حيّاً على S24 Ultra**:
+    1. دمج مكتبات Shizuku الرسمية (`dev.rikka.shizuku:api:13.1.5` و `provider:13.1.5`) للاتصال التلقائي بتطبيق Shizuku عند وجوده.
+    2. بناء خادم الصلاحيات المدمج `DeckOSPrivilegedServer` ليعمل مستقلاً تحت UID 2000 (Shell) على المنفذ `127.0.0.1:28751` بدون الحاجة لتطبيق خارجي.
+    3. إنشاء `PrivilegedBridge` بإدارة ثنائية شفافة للمسارين.
+    4. التحقق الحي: تم تشغيل الخادم على هاتف S24 Ultra (PID 19914, UID 2000)، واختبار PING بنجاح، وتنفيذ تعطيل قيود العمليات Phantom Processes بنجاح، ومنح صلاحية `WRITE_SECURE_SETTINGS` للتطبيق بنجاح.
 - [ ] **L-93 — بوابة GPL/Steam.**
   - القبول: مصدر مقابل + notices + مراجعة توزيع.
 
