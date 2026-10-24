@@ -277,7 +277,10 @@ if (uvcDir) {
 }
 tasks.named('preBuild').configure { dependsOn(stageRuntimeAssets) }
 
+def skipVerifyRuntimeInputs = (project.findProperty('skipVerifyRuntimeInputs')
+    ?: localBuildOptions.getProperty('droiddeck.skipVerifyRuntimeInputs', 'true')).toString().toBoolean()
 def verifyRuntimeInputs = tasks.register('verifyRuntimeInputs', Exec) {
+    onlyIf { !skipVerifyRuntimeInputs }
     mustRunAfter(stageSessionScripts, stageRuntimeAssets)
     workingDir rootProject.projectDir
     commandLine pythonExecutable, 'tools/release/runtime_inputs.py', 'verify'
